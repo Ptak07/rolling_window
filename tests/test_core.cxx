@@ -1,15 +1,15 @@
 #include <gtest/gtest.h> 
-#include "SlidingMedian.hpp"
+#include "MultisetMedian.hpp"
 
-TEST(SlidingMedianTest, HandlesInitialization) {
-    SlidingMedian sm(3);
+TEST(MultisetMedianTest, HandlesInitialization) {
+    MultisetMedian sm(3);
     EXPECT_EQ(sm.current_size(), 0);
     
     EXPECT_THROW(sm.get_median(), std::logic_error);
 }
 
-TEST(SlidingMedianTest, HandlesWarmUpPhase) {
-    SlidingMedian sm(3);
+TEST(MultisetMedianTest, HandlesWarmUpPhase) {
+    MultisetMedian sm(3);
     
     sm.update(10.0);
     EXPECT_DOUBLE_EQ(sm.get_median(), 10.0);
@@ -21,8 +21,8 @@ TEST(SlidingMedianTest, HandlesWarmUpPhase) {
     EXPECT_DOUBLE_EQ(sm.get_median(), 10.0); //  5, 10, 20
 }
 
-TEST(SlidingMedianTest, HandlesWindowShifting) {
-    SlidingMedian sm(3);
+TEST(MultisetMedianTest, HandlesWindowShifting) {
+    MultisetMedian sm(3);
     sm.update(1.0);
     sm.update(2.0);
     sm.update(3.0);
@@ -35,8 +35,8 @@ TEST(SlidingMedianTest, HandlesWindowShifting) {
     EXPECT_DOUBLE_EQ(sm.get_median(), 3.0);
 }
 
-TEST(SlidingMedianTest, HandlesDuplicateValues) {
-    SlidingMedian sm(4);
+TEST(MultisetMedianTest, HandlesDuplicateValues) {
+    MultisetMedian sm(4);
     sm.update(5.0);
     sm.update(5.0);
     sm.update(5.0);
