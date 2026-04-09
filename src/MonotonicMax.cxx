@@ -1,5 +1,8 @@
 #include "MonotonicMax.hpp"
 
+MonotonicMax::MonotonicMax(std::size_t window_size) 
+    : window_size_(window_size), current_tick_(0) { }
+
 double MonotonicMax::get_max() const { 
     if (deque_.empty()) 
         return std::numeric_limits<double>::quiet_NaN(); 

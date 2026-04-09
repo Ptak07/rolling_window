@@ -1,5 +1,6 @@
 #include <gtest/gtest.h> 
 #include "MultisetMedian.hpp"
+#include "MonotonicMax.hpp"
 
 TEST(MultisetMedianTest, HandlesInitialization) {
     MultisetMedian sm(3);
@@ -44,4 +45,49 @@ TEST(MultisetMedianTest, HandlesDuplicateValues) {
     
     sm.update(5.0);
     EXPECT_DOUBLE_EQ(sm.get_median(), 5.0);
+}
+
+TEST(MonotonicMaxTest, BasicFunctionality) {
+    MonotonicMax mm(3); 
+
+    mm.update(10.0);
+    EXPECT_DOUBLE_EQ(mm.get_max(), 10.0);
+
+    mm.update(20.0);
+    EXPECT_DOUBLE_EQ(mm.get_max(), 20.0);
+
+    mm.update(5.0);
+    EXPECT_DOUBLE_EQ(mm.get_max(), 20.0); // [10, 20, 5] 
+}
+
+TEST(MonotonicMaxTest, MaxExitsWindow) {
+    MonotonicMax mm(3);
+    mm.update(50.0); 
+    mm.update(10.0);
+    mm.update(20.0); 
+    EXPECT_DOUBLE_EQ(mm.get_max(), 50.0);
+
+    mm.update(5.0); 
+    EXPECT_DOUBLE_EQ(mm.get_max(), 20.0); 
+}
+
+TEST(MonotonicMaxTest, StrictlyDecreasing) {
+    MonotonicMax mm(3);
+    mm.update(100.0);
+    mm.update(90.0);
+    mm.update(80.0);
+    EXPECT_DOUBLE_EQ(mm.get_max(), 100.0);
+
+    mm.update(70.0); 
+    EXPECT_DOUBLE_EQ(mm.get_max(), 90.0);
+}
+
+TEST(MonotonicMaxTest, Duplicates) {
+    MonotonicMax mm(2);
+    mm.update(10.0);
+    mm.update(10.0);
+    EXPECT_DOUBLE_EQ(mm.get_max(), 10.0);
+    
+    mm.update(5.0); 
+    EXPECT_DOUBLE_EQ(mm.get_max(), 10.0);
 }

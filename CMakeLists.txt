@@ -6,7 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -O3")
 
-add_library(rolling_core src/MultisetMedian.cxx)
+add_library(rolling_core 
+    src/MultisetMedian.cxx
+    src/MonotonicMax.cxx
+)
 target_include_directories(rolling_core PUBLIC include)
 
 include(FetchContent)
