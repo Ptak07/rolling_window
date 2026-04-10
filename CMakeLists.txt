@@ -10,6 +10,7 @@ add_library(rolling_core
     src/MultisetMedian.cxx
     src/MonotonicMax.cxx
     src/SlidingWelford.cxx
+    src/SlidingWelfordRing.cxx
 )
 target_include_directories(rolling_core PUBLIC include)
 
