@@ -1,6 +1,7 @@
 #include <gtest/gtest.h> 
 #include "MultisetMedian.hpp"
 #include "MonotonicMax.hpp"
+#include "SlidingWelford.hpp"
 
 TEST(MultisetMedianTest, HandlesInitialization) {
     MultisetMedian sm(3);
@@ -90,4 +91,45 @@ TEST(MonotonicMaxTest, Duplicates) {
     
     mm.update(5.0); 
     EXPECT_DOUBLE_EQ(mm.get_max(), 10.0);
+}
+
+
+TEST(SlidingWelfordTest, ConstantValues) {
+    SlidingWelford sw(5);
+    for(int i = 0; i < 10; ++i) {
+        sw.update(100.0);
+    }
+    EXPECT_DOUBLE_EQ(sw.get_mean(), 100.0);
+    EXPECT_NEAR(sw.get_std_dev(), 0.0, 1e-9); 
+}
+
+TEST(SlidingWelfordTest, KnownValues) {
+    SlidingWelford sw(2); // window size 2
+    
+    sw.update(10.0);
+    sw.update(20.0);
+    
+    // mean: 15
+    EXPECT_DOUBLE_EQ(sw.get_mean(), 15.0);
+    // Variance: ((10-15)^2 + (20-15)^2) / 1 = 50
+    // std dev: sqrt(50) = 7.0710678...
+    EXPECT_NEAR(sw.get_std_dev(), 7.071067811865475, 1e-9);
+}
+
+TEST(SlidingWelfordTest, WindowShift) {
+    SlidingWelford sw(3);
+    
+    sw.update(10.0);
+    sw.update(10.0);
+    sw.update(10.0);
+    EXPECT_DOUBLE_EQ(sw.get_std_dev(), 0.0);
+
+    // [10, 10, 100] 
+    sw.update(100.0);
+    
+    // Mean: 40
+    // M2: (10-40)^2 + (10-40)^2 + (100-40)^2 = 900 + 900 + 3600 = 5400
+    // Var: 5400 / 2 = 2700
+    EXPECT_DOUBLE_EQ(sw.get_mean(), 40.0);
+    EXPECT_DOUBLE_EQ(sw.get_variance(), 2700.0);
 }
