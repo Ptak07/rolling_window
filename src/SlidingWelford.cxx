@@ -8,7 +8,7 @@ SlidingWelford::SlidingWelford(std::size_t window_size)
   }
 }
 
-std::size_t SlidingWelford::current_size() const {
+std::size_t SlidingWelford::current_size_impl() const {
   return window_.size();
 }
 
@@ -16,18 +16,22 @@ double SlidingWelford::get_mean() const {
   return mean_;
 }
 
-double SlidingWelford::get_variance() const {
+double SlidingWelford::get_value_impl() const {
   if (current_size() < 2) {
     return std::numeric_limits<double>::quiet_NaN();
   }
   return std::max(0.0, M2_) / (current_size() - 1);
 }
 
+double SlidingWelford::get_variance() const {
+  return get_value();
+}
+
 double SlidingWelford::get_std_dev() const {
   return std::sqrt(get_variance());
 }
 
-void SlidingWelford::update(double value) {
+void SlidingWelford::update_impl(double value) {
   if (current_size() == window_size_) {
     double x_out = window_.front();
     window_.pop();

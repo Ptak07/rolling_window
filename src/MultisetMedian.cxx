@@ -11,11 +11,11 @@ bool MultisetMedian::is_even() const {
   return window_data_.size() % 2 == 0;
 }
 
-std::size_t MultisetMedian::current_size() const {
+std::size_t MultisetMedian::current_size_impl() const {
   return window_data_.size();
 }
 
-double MultisetMedian::get_median() const {
+double MultisetMedian::get_value_impl() const {
   if (window_data_.empty()) {
     throw std::logic_error("No data to calculate median.");
   }
@@ -28,7 +28,11 @@ double MultisetMedian::get_median() const {
   }
 }
 
-void MultisetMedian::update(double new_value) {
+double MultisetMedian::get_median() const {
+  return get_value();
+}
+
+void MultisetMedian::update_impl(double new_value) {
   if (history_.size() == window_size_) {
     double oldest_val = history_.front();
     history_.pop();

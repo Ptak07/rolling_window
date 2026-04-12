@@ -37,7 +37,12 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 enable_testing() 
-add_executable(test_core tests/test_core.cxx) 
+add_executable(test_core
+    tests/test_multiset_median.cxx
+    tests/test_monotonic_max.cxx
+    tests/test_sliding_welford.cxx
+    tests/test_sliding_welford_ring.cxx
+)
 target_link_libraries(test_core PRIVATE rolling_core gtest gtest_main) 
 
 include(GoogleTest)

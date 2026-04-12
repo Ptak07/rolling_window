@@ -1,16 +1,18 @@
 #pragma once
-#include "IMedianAlgorithm.hpp"
+#include "RollingMetric.hpp"
 #include <queue>
 #include <set>
 #include <stdexcept>
 
-class MultisetMedian : public IMedianAlgorithm {
+class MultisetMedian : public RollingMetric<MultisetMedian> {
 public:
   explicit MultisetMedian(std::size_t window_size);
 
-  void update(double new_value);
+  void update_impl(double new_value);
+  double get_value_impl() const;
+  std::size_t current_size_impl() const;
+
   double get_median() const;
-  std::size_t current_size() const;
 
 private:
   std::size_t window_size_;

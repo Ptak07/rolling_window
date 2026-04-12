@@ -1,16 +1,20 @@
 #pragma once
 
+#include "RollingMetric.hpp"
+
 #include <cstddef>
 #include <deque>
 #include <limits>
 
-class MonotonicMax {
+class MonotonicMax : public RollingMetric<MonotonicMax> {
 public:
   explicit MonotonicMax(std::size_t window_size);
 
-  void update(double value);
+  void update_impl(double value);
+  double get_value_impl() const;
+  std::size_t current_size_impl() const;
+
   double get_max() const;
-  std::size_t current_size() const;
 
 private:
   struct Element {

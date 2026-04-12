@@ -10,7 +10,7 @@ SlidingWelfordRing::SlidingWelfordRing(std::size_t window_size)
   buffer_.resize(window_size);
 }
 
-std::size_t SlidingWelfordRing::current_size() const {
+std::size_t SlidingWelfordRing::current_size_impl() const {
   return count_;
 }
 
@@ -18,18 +18,22 @@ double SlidingWelfordRing::get_mean() const {
   return mean_;
 }
 
-double SlidingWelfordRing::get_variance() const {
+double SlidingWelfordRing::get_value_impl() const {
   if (current_size() < 2) {
     return std::numeric_limits<double>::quiet_NaN();
   }
   return std::max(0.0, M2_) / (count_ - 1);
 }
 
+double SlidingWelfordRing::get_variance() const {
+  return get_value();
+}
+
 double SlidingWelfordRing::get_std_dev() const {
   return std::sqrt(get_variance());
 }
 
-void SlidingWelfordRing::update(double value) {
+void SlidingWelfordRing::update_impl(double value) {
   if (count_ == window_size_) {
     if (window_size_ == 1) {
       mean_ = 0.0;

@@ -1,19 +1,23 @@
 #pragma once
 
+#include "RollingMetric.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <queue>
 
-class SlidingWelford {
+class SlidingWelford : public RollingMetric<SlidingWelford> {
 public:
   explicit SlidingWelford(std::size_t window_size);
 
-  void update(double value);
+  void update_impl(double value);
+  double get_value_impl() const;
+  std::size_t current_size_impl() const;
+
   double get_mean() const;
   double get_std_dev() const;
   double get_variance() const;
-  std::size_t current_size() const;
 
 private:
   std::size_t window_size_;
