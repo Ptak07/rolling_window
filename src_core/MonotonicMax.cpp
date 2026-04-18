@@ -1,4 +1,5 @@
 #include "MonotonicMax.hpp"
+#include <stdexcept>
 
 MonotonicMax::MonotonicMax(std::size_t window_size)
     : window_size_(window_size), current_tick_(0) {
