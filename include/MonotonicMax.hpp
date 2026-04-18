@@ -7,16 +7,18 @@
 #include <limits>
 
 class MonotonicMax : public RollingMetric<MonotonicMax> {
+  friend class RollingMetric<MonotonicMax>;
+
 public:
   explicit MonotonicMax(std::size_t window_size);
-
-  void update_impl(double value);
-  double get_value_impl() const;
-  std::size_t current_size_impl() const;
 
   double get_max() const;
 
 private:
+  void update_impl(double value);
+  double get_value_impl() const;
+  std::size_t current_size_impl() const;
+
   struct Element {
     double value;
     std::size_t tick_index;

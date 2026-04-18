@@ -5,16 +5,18 @@
 #include <stdexcept>
 
 class MultisetMedian : public RollingMetric<MultisetMedian> {
+  friend class RollingMetric<MultisetMedian>;
+
 public:
   explicit MultisetMedian(std::size_t window_size);
-
-  void update_impl(double new_value);
-  double get_value_impl() const;
-  std::size_t current_size_impl() const;
 
   double get_median() const;
 
 private:
+  void update_impl(double new_value);
+  double get_value_impl() const;
+  std::size_t current_size_impl() const;
+
   std::size_t window_size_;
   std::multiset<double> window_data_;
   std::multiset<double>::iterator mid_;
