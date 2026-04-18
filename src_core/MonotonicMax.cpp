@@ -2,6 +2,9 @@
 
 MonotonicMax::MonotonicMax(std::size_t window_size)
     : window_size_(window_size), current_tick_(0) {
+  if (window_size_ == 0) {
+    throw std::invalid_argument("Window length must be greater than 0");
+  }
 }
 
 double MonotonicMax::get_value_impl() const {
