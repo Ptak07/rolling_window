@@ -13,6 +13,6 @@ target_sources(robust_rolling_core PRIVATE
   ../src_core/SlidingWelfordRing.cpp
 )
 
-target_compile_options(robust_rolling_core PRIVATE -O3 -march=native -DNDEBUG)
+target_compile_options(robust_rolling_core PRIVATE -O3 -DNDEBUG)
 
 install(TARGETS robust_rolling_core LIBRARY DESTINATION .)
