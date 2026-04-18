@@ -25,3 +25,4 @@ src/SlidingWelford.cpp
 src/SlidingWelfordRing.cpp
 
 .DS_Store
+.venv
