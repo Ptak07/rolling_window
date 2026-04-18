@@ -4,8 +4,24 @@ build/
 *.so
 *.dylib
 *.dll
+*.tar.gz
 .vs/
 .vscode/
 .cache/
+
+# R package artifacts
+*.Rcheck/
+robustrolling_*.tar.gz
+.Rhistory
+.RData
+.RDataTmp
+.Ruserdata
+.Rproj.user/
+
+# Local generated copies (if configure is run manually in workspace)
+src/MonotonicMax.cpp
+src/MultisetMedian.cpp
+src/SlidingWelford.cpp
+src/SlidingWelfordRing.cpp
 
 .DS_Store

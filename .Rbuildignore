@@ -1,0 +1,7 @@
+^build$
+^benchmarks$
+^tests/.*\.cxx$
+^CMakeLists\.txt$
+^\.vscode$
+^\.clang-format$
+^robustrolling_.*\.tar\.gz$

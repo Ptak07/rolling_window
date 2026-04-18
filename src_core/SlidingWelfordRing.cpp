@@ -58,3 +58,4 @@ void SlidingWelfordRing::update_impl(double value) {
     head_ = 0;
   }
 }
+

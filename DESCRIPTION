@@ -1,0 +1,15 @@
+Package: robustrolling
+Type: Package
+Title: Rolling Window Metrics
+Version: 0.1.0
+Author: Igor Ptak
+Maintainer: Igor Ptak <ip@email.com>
+Description: High-performance rolling window metrics implemented in C++17 with
+	zero-copy batch processing for R vectors.
+License: MIT + file LICENSE
+Encoding: UTF-8
+SystemRequirements: C++17
+NeedsCompilation: yes
+Suggests: tinytest
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
