@@ -60,3 +60,21 @@ TEST(MultisetMedianTest, CrtpInterfaceMatchesMedian) {
   EXPECT_EQ(base.current_size(), 3U);
   EXPECT_DOUBLE_EQ(base.get_value(), sm.get_median());
 }
+
+TEST(MultisetMedianTest, HandlesEvenWindowDescendingFill) {
+  MultisetMedian sm(4);
+  sm.update(4.0);
+  sm.update(3.0);
+  sm.update(2.0);
+  sm.update(1.0);
+  EXPECT_DOUBLE_EQ(sm.get_median(), 2.5);
+}
+
+TEST(MultisetMedianTest, HandlesWindowSize2Sliding) {
+  MultisetMedian sm(2);
+  sm.update(1.0);
+  sm.update(2.0);
+  EXPECT_DOUBLE_EQ(sm.get_median(), 1.5);
+  sm.update(3.0);
+  EXPECT_DOUBLE_EQ(sm.get_median(), 2.5);
+}

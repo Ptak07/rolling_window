@@ -36,26 +36,33 @@ void MultisetMedian::update_impl(double new_value) {
   if (history_.size() == window_size_) {
     double oldest_val = history_.front();
     history_.pop();
+    history_.push(new_value);
+    window_data_.insert(new_value);
 
-    auto it_to_remove = window_data_.find(oldest_val);
+    if (new_value < *mid_) {
+      mid_--;
+    }
+    auto it_to_remove = window_data_.lower_bound(oldest_val);
 
-    if (it_to_remove == mid_ || *it_to_remove < *mid_) {
+    if (oldest_val <= *mid_) {
       mid_++;
     }
 
     window_data_.erase(it_to_remove);
-  }
 
-  history_.push(new_value);
-  window_data_.insert(new_value);
+  } else {
+    history_.push(new_value);
+    window_data_.insert(new_value);
 
-  if (window_data_.size() == 1)
-    mid_ = window_data_.begin();
-  else {
-    if (new_value < *mid_)
-      mid_--;
-    if (history_.size() < window_size_ && is_even()) {
-      mid_++;
+    if (window_data_.size() == 1) {
+      mid_ = window_data_.begin();
+    } else {
+      if (new_value < *mid_) {
+        mid_--;
+      }
+      if (window_data_.size() % 2 == 0) {
+        mid_++;
+      }
     }
   }
 }

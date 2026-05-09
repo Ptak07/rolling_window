@@ -24,5 +24,7 @@ src/MultisetMedian.cpp
 src/SlidingWelford.cpp
 src/SlidingWelfordRing.cpp
 
+inst/include/
+
 .DS_Store
 .venv
