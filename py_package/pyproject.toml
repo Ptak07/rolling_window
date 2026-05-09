@@ -23,8 +23,12 @@ dependencies = [
 dev = [
   "pytest>=8.0",
 ]
+pandas = [
+  "pandas>=1.0",
+]
 
 [tool.scikit-build]
 cmake.source-dir = "."
 cmake.args = ["-DCMAKE_BUILD_TYPE=Release"]
 wheel.expand-macos-universal-tags = true
+wheel.packages = ["robustrolling"]

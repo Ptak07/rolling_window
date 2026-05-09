@@ -597,3 +597,44 @@ class TestMultisetMedianInputValidation:
         engine = rrc.MultisetMedian(2)
         out = engine.process_batch(data)
         assert out.dtype == np.float64
+
+
+# PANDAS INTEGRATION Tests
+
+import robustrolling as rr
+import pandas as pd
+
+
+class TestPandasIntegration:
+
+    def test_rolling_max_preserves_index(self):
+        idx = pd.date_range("2024-01-01", periods=5)
+        s = pd.Series([1.0, 3.0, 2.0, 5.0, 4.0], index=idx)
+        out = rr.rolling_max(s, 3)
+        assert isinstance(out, pd.Series)
+        assert out.index.equals(idx)
+
+    def test_rolling_median_preserves_name(self):
+        s = pd.Series([1.0, 3.0, 2.0, 5.0], name="price")
+        out = rr.rolling_median(s, 2)
+        assert isinstance(out, pd.Series)
+        assert out.name == "price"
+
+    def test_rolling_variance_preserves_index(self):
+        idx = pd.RangeIndex(start=10, stop=15)
+        s = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0], index=idx)
+        out = rr.rolling_variance(s, 3)
+        assert isinstance(out, pd.Series)
+        assert out.index.equals(idx)
+
+    def test_numpy_input_returns_ndarray(self):
+        arr = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+        assert isinstance(rr.rolling_max(arr, 3), np.ndarray)
+        assert isinstance(rr.rolling_median(arr, 3), np.ndarray)
+        assert isinstance(rr.rolling_variance(arr, 3), np.ndarray)
+
+    def test_values_match_reference(self):
+        s = pd.Series([1.0, 3.0, 2.0, 5.0, 4.0])
+        out = rr.rolling_max(s, 3)
+        expected = pd.Series([1.0, 3.0, 3.0, 5.0, 5.0])
+        pd.testing.assert_series_equal(out, expected)
