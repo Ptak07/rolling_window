@@ -20,6 +20,7 @@ robustrolling_*.tar.gz
 
 # Local generated copies (if configure is run manually in workspace)
 src/MonotonicMax.cpp
+src/MonotonicMin.cpp
 src/MultisetMedian.cpp
 src/SlidingWelford.cpp
 src/SlidingWelfordRing.cpp

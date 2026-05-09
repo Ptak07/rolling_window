@@ -10,6 +10,7 @@ target_include_directories(robust_rolling_core PRIVATE ../include)
 
 target_sources(robust_rolling_core PRIVATE
   ../src_core/MonotonicMax.cpp
+  ../src_core/MonotonicMin.cpp
   ../src_core/MultisetMedian.cpp
   ../src_core/SlidingWelfordRing.cpp
 )

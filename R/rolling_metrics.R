@@ -16,9 +16,9 @@
 #' x <- as.double(c(1, 2, 3, 4))
 #' rolling_variance(x, 3L)
 rolling_variance <- function(x, window_size) {
-  if (!is.double(x)) {
-    stop("x must be a double vector.", call. = FALSE)
-  }
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  if (!is.finite(window_size) || window_size < 1L)
+    stop("window_size must be a positive finite integer.", call. = FALSE)
   .Call("rolling_variance_c", x, as.integer(window_size), PACKAGE = "robustrolling")
 }
 
@@ -40,10 +40,34 @@ rolling_variance <- function(x, window_size) {
 #' x <- as.double(c(1, 3, 2, 5, 4))
 #' rolling_max(x, 3L)
 rolling_max <- function(x, window_size) {
-  if (!is.double(x)) {
-    stop("x must be a double vector.", call. = FALSE)
-  }
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  if (!is.finite(window_size) || window_size < 1L)
+    stop("window_size must be a positive finite integer.", call. = FALSE)
   .Call("rolling_max_c", x, as.integer(window_size), PACKAGE = "robustrolling")
+}
+
+#' @title Rolling Minimum
+#'
+#' @description
+#' Computes the rolling minimum over a numeric vector using
+#' a monotonic deque.
+#'
+#' @param x A numeric vector of type double.
+#' @param window_size Positive integer window length.
+#'
+#' @return
+#' A numeric vector with rolling minimum values.
+#'
+#' @export
+#'
+#' @examples
+#' x <- as.double(c(1, 3, 2, 5, 4))
+#' rolling_min(x, 3L)
+rolling_min <- function(x, window_size) {
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  if (!is.finite(window_size) || window_size < 1L)
+    stop("window_size must be a positive finite integer.", call. = FALSE)
+  .Call("rolling_min_c", x, as.integer(window_size), PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Median
@@ -65,8 +89,8 @@ rolling_max <- function(x, window_size) {
 #' x <- as.double(c(1, 3, 2, 5, 4))
 #' rolling_median(x, 3L)
 rolling_median <- function(x, window_size) {
-  if (!is.double(x)) {
-    stop("x must be a double vector.", call. = FALSE)
-  }
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  if (!is.finite(window_size) || window_size < 1L)
+    stop("window_size must be a positive finite integer.", call. = FALSE)
   .Call("rolling_median_c", x, as.integer(window_size), PACKAGE = "robustrolling")
 }
