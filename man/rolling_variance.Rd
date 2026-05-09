@@ -4,16 +4,22 @@
 \alias{rolling_variance}
 \title{Rolling Sample Variance}
 \usage{
-rolling_variance(x, window_size)
+rolling_variance(x, window_size, min_periods = window_size)
 }
 \arguments{
 \item{x}{A numeric vector of type double.}
 
 \item{window_size}{Positive integer window length.}
+
+\item{min_periods}{Minimum number of non-\code{NA} observations required in
+a window to return a result. Defaults to \code{window_size} (pandas
+semantics). Positions with fewer non-\code{NA} values yield \code{NA}.}
 }
 \value{
 A numeric vector with rolling sample variance values. Entries are
-\code{NaN} when fewer than two observations are available in the window.
+\code{NA} when fewer than \code{min_periods} non-\code{NA} observations are
+present in the window, and \code{NaN} when variance is undefined (fewer
+than two values).
 }
 \description{
 Computes the rolling sample variance over a numeric vector.

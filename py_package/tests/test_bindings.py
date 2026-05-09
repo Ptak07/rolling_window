@@ -1,640 +1,581 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 import robust_rolling_core as rrc
+import robustrolling as rr
 
 
-# SLIDING WELFORD (Rolling Variance) Tests
+# ── helpers ────────────────────────────────────────────────────────────────────
 
-class TestSlidingWelfordBaseline:
-    """Baseline correctness scenarios for SlidingWelford."""
+def _nan_allclose(result, expected, rtol=1e-12, atol=1e-12):
+    """Assert arrays are equal, treating NaN positions as matching."""
+    result = np.asarray(result, dtype=np.float64)
+    expected = np.asarray(expected, dtype=np.float64)
+    nan_exp = np.isnan(expected)
+    assert np.array_equal(np.isnan(result), nan_exp), (
+        f"NaN mask mismatch:\n  result  = {result}\n  expected= {expected}"
+    )
+    if np.any(~nan_exp):
+        np.testing.assert_allclose(result[~nan_exp], expected[~nan_exp], rtol=rtol, atol=atol)
 
-    def test_known_values(self):
-        """Test against known variance values."""
-        data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(3)
-        out = engine.process_batch(data)
 
-        expected = np.array([np.nan, 0.5, 1.0, 1.0, 1.0], dtype=np.float64)
-        assert np.isnan(out[0])
-        np.testing.assert_allclose(out[1:], expected[1:], rtol=1e-12, atol=1e-12)
-
-    def test_return_type_is_float64(self):
-        """Output should be float64."""
-        data = np.array([1.0, 2.0, 3.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(2)
-        out = engine.process_batch(data)
-
-        assert out.dtype == np.float64
-        assert len(out) == len(data)
-
-    def test_output_length_matches_input(self):
-        """Output array length must equal input length."""
-        for n in [1, 5, 10, 100]:
-            data = np.random.randn(n).astype(np.float64)
-            engine = rrc.SlidingWelford(2)
-            out = engine.process_batch(data)
-            assert len(out) == n
-
-
-class TestSlidingWelfordEdgeCases:
-    """Edge cases for window sizes and array properties."""
-
-    def test_window_size_one_always_nan(self):
-        """Window size 1 should return all NaN (no variance with single point)."""
-        data = np.array([10.0, 11.0, 12.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(1)
-        out = engine.process_batch(data)
-
-        assert np.all(np.isnan(out))
-
-    def test_window_larger_than_array(self):
-        """When window > array length, compute cumulative variance."""
-        data = np.array([2.0, 4.0, 6.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(10)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[0])  # First point: no variance
-        assert np.isclose(out[1], 2.0, rtol=1e-12)  # var([2, 4])
-        assert np.isclose(out[2], 4.0, rtol=1e-12)  # var([2, 4, 6])
-
-    def test_stable_sequence_zero_variance(self):
-        """Constant values should have zero variance once window is full."""
-        flat = np.array([5.0] * 8, dtype=np.float64)
-        engine = rrc.SlidingWelford(4)
-        out = engine.process_batch(flat)
-
-        assert np.isnan(out[0])  # First point
-        np.testing.assert_allclose(out[1:], 0.0, atol=1e-12)
-
-    def test_empty_input(self):
-        """Empty array should return empty output."""
-        data = np.array([], dtype=np.float64)
-        engine = rrc.SlidingWelford(3)
-        out = engine.process_batch(data)
-
-        assert len(out) == 0
-        assert out.dtype == np.float64
-
-
-class TestSlidingWelfordSequencePatterns:
-    """Test various data patterns."""
-
-    @pytest.mark.parametrize("k", [2, 3, 5])
-    def test_against_reference_implementation(self, k):
-        """Verify against reference variance calculation."""
-        x = np.array([-3.0, -1.0, 0.0, 2.0, 10.0, 7.0, 7.0, 8.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(k)
-        out = engine.process_batch(x)
-
-        # Reference implementation: compute variance naively
-        expected = np.full_like(x, np.nan)
-        for i in range(len(x)):
-            left = max(0, i - k + 1)
-            window = x[left:i + 1]
-            if len(window) >= 2:
-                expected[i] = np.var(window, ddof=1)  # Sample variance
-
-        np.testing.assert_allclose(out, expected, rtol=1e-11, atol=1e-11)
-
-    def test_increasing_sequence(self):
-        """Test with strictly increasing values."""
-        data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(2)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[0])
-        # Variance of [1,2] is 0.5, [2,3] is 0.5, etc.
-        np.testing.assert_allclose(out[1:], 0.5, rtol=1e-12)
-
-    def test_duplicate_values(self):
-        """Test with repeated identical values."""
-        data = np.array([4.0, 4.0, 4.0, 4.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(2)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[0])
-        np.testing.assert_allclose(out[1:], 0.0, atol=1e-12)
-
-
-class TestSlidingWelfordNaNHandling:
-    """Test NaN input handling."""
-
-    def test_nan_passthrough(self):
-        """NaN in input should result in NaN in output at that position."""
-        data = np.array([1.0, 2.0, np.nan, 4.0, 5.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(3)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[2])
-
-    def test_nan_at_beginning(self):
-        """NaN at start should propagate correctly."""
-        data = np.array([np.nan, 2.0, 3.0, 4.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(2)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[0])
-        assert out.shape == data.shape
-
-    def test_multiple_nans(self):
-        """Multiple NaN values should each produce NaN output."""
-        data = np.array([1.0, np.nan, 3.0, np.nan, 5.0], dtype=np.float64)
-        engine = rrc.SlidingWelford(3)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[1])
-        assert np.isnan(out[3])
-
-
-class TestSlidingWelfordInputValidation:
-    """Test input validation and error handling."""
-
-    def test_accepts_integer_input_with_conversion(self):
-        """Integer arrays are automatically converted to float64."""
-        data = np.array([1, 2, 3, 4, 5], dtype=np.int32)
-        engine = rrc.SlidingWelford(2)
-        out = engine.process_batch(data)
-
-        assert out.dtype == np.float64
-        assert len(out) == len(data)
-
-    def test_rejects_2d_array(self):
-        """2D arrays should raise error."""
-        data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64)
-        engine = rrc.SlidingWelford(2)
-
-        with pytest.raises(RuntimeError, match="Input must be 1D array"):
-            engine.process_batch(data)
-
-    def test_rejects_3d_array(self):
-        """3D arrays should raise error."""
-        data = np.arange(8.0).reshape((2, 2, 2))
-        engine = rrc.SlidingWelford(2)
-
-        with pytest.raises(RuntimeError):
-            engine.process_batch(data)
-
-    @pytest.mark.parametrize("invalid_k", [-1, -5])
-    def test_rejects_negative_window_size(self, invalid_k):
-        """Negative window size should raise TypeError."""
-        with pytest.raises(TypeError):
-            rrc.SlidingWelford(invalid_k)
-
-    def test_rejects_zero_window_size(self):
-        """Window size 0 should raise ValueError."""
-        with pytest.raises(ValueError, match="Window length must be greater than 0"):
-            rrc.SlidingWelford(0)
-
-    def test_constructor_rejects_na_window(self):
-        """NA/None window values should be rejected."""
-        with pytest.raises(TypeError):
-            rrc.SlidingWelford(None)
-
-    def test_constructor_rejects_infinite_window(self):
-        """Infinite window values should be rejected or handled."""
-        # inf cannot be converted to size_t - should raise
-        with pytest.raises((ValueError, OverflowError, TypeError)):
-            rrc.SlidingWelford(float('inf'))
-
-
-class TestSlidingWelfordLargeData:
-    """Test with larger datasets."""
-
-    def test_large_array(self):
-        """Test with large random array."""
-        n = 10000
-        data = np.random.randn(n).astype(np.float64)
-        engine = rrc.SlidingWelford(10)
-        out = engine.process_batch(data)
-
-        assert len(out) == n
-        assert not np.all(np.isnan(out))  # Most should have valid variance
-
-    def test_very_large_window(self):
-        """Test with window size close to array length."""
-        data = np.arange(1000.0, dtype=np.float64)
-        engine = rrc.SlidingWelford(999)
-        out = engine.process_batch(data)
-
-        assert len(out) == 1000
-        assert np.isnan(out[0])
-        # Last element should have variance of all elements
-        assert not np.isnan(out[-1])
-
-
-# MONOTONIC MAX (Rolling Maximum) Tests
-
-class TestMonotonicMaxBaseline:
-    """Baseline correctness scenarios for MonotonicMax."""
-
-    def test_known_values(self):
-        """Test against known maximum values."""
-        data = np.array([1.0, 2.0, 3.0, 2.0, 5.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(3)
-        out = engine.process_batch(data)
-
-        expected = np.array([1.0, 2.0, 3.0, 3.0, 5.0], dtype=np.float64)
-        np.testing.assert_allclose(out, expected, rtol=1e-12, atol=1e-12)
-
-    def test_return_type_is_float64(self):
-        """Output should be float64."""
-        data = np.array([1.0, 2.0, 3.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(2)
-        out = engine.process_batch(data)
-
-        assert out.dtype == np.float64
-        assert len(out) == len(data)
-
-    def test_output_length_matches_input(self):
-        """Output array length must equal input length."""
-        for n in [1, 5, 10, 100]:
-            data = np.random.randn(n).astype(np.float64)
-            engine = rrc.MonotonicMax(2)
-            out = engine.process_batch(data)
-            assert len(out) == n
-
-
-class TestMonotonicMaxEdgeCases:
-    """Edge cases for window sizes and array properties."""
-
-    def test_window_size_one_returns_identity(self):
-        """Window size 1 should return original series."""
-        data = np.array([-1.0, 0.0, 10.0, 2.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(1)
-        out = engine.process_batch(data)
-
-        np.testing.assert_allclose(out, data, rtol=1e-12)
-
-    def test_window_larger_than_array_cumulative_max(self):
-        """Window larger than array should give cumulative max."""
-        data = np.array([2.0, -3.0, 7.0, 1.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(20)
-        out = engine.process_batch(data)
-
-        expected = np.maximum.accumulate(data)
-        np.testing.assert_allclose(out, expected, rtol=1e-12)
-
-    def test_empty_input(self):
-        """Empty array should return empty output."""
-        data = np.array([], dtype=np.float64)
-        engine = rrc.MonotonicMax(3)
-        out = engine.process_batch(data)
-
-        assert len(out) == 0
-        assert out.dtype == np.float64
-
-
-class TestMonotonicMaxSequencePatterns:
-    """Test various data patterns."""
-
-    def test_decreasing_sequence(self):
-        """Test with strictly decreasing values."""
-        data = np.array([9.0, 7.0, 5.0, 3.0, 1.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(3)
-        out = engine.process_batch(data)
-
-        expected = np.array([9.0, 9.0, 9.0, 7.0, 5.0], dtype=np.float64)
-        np.testing.assert_allclose(out, expected, rtol=1e-12)
-
-    def test_duplicate_values(self):
-        """Test with repeated identical values."""
-        data = np.array([4.0, 4.0, 4.0, 4.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(2)
-        out = engine.process_batch(data)
-
-        np.testing.assert_allclose(out, data, rtol=1e-12)
-
-    def test_increasing_sequence(self):
-        """Test with strictly increasing values."""
-        data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(2)
-        out = engine.process_batch(data)
-
-        np.testing.assert_allclose(out, data, rtol=1e-12)
-
-    @pytest.mark.parametrize("k", [2, 3, 5])
-    def test_against_reference_implementation(self, k):
-        """Verify against reference maximum calculation."""
-        x = np.array([-2.0, 6.0, 1.0, 8.0, 0.0, 8.0, -1.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(k)
-        out = engine.process_batch(x)
-
-        # Reference implementation: compute max naively
-        expected = np.zeros_like(x)
-        for i in range(len(x)):
-            left = max(0, i - k + 1)
-            expected[i] = np.max(x[left:i + 1])
-
-        np.testing.assert_allclose(out, expected, rtol=1e-12, atol=1e-12)
-
-    def test_peak_in_middle(self):
-        """Test with a peak in the middle of the sequence."""
-        data = np.array([1.0, 2.0, 5.0, 3.0, 2.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(3)
-        out = engine.process_batch(data)
-
-        expected = np.array([1.0, 2.0, 5.0, 5.0, 5.0], dtype=np.float64)
-        np.testing.assert_allclose(out, expected, rtol=1e-12)
-
-
-class TestMonotonicMaxNaNHandling:
-    """Test NaN input handling."""
-
-    def test_nan_passthrough(self):
-        """NaN in input should result in NaN in output at that position."""
-        data = np.array([1.0, 2.0, np.nan, 1.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(2)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[2])
-
-    def test_nan_at_beginning(self):
-        """NaN at start should propagate correctly."""
-        data = np.array([np.nan, 2.0, 3.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(2)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[0])
-        assert out.shape == data.shape
-
-    def test_multiple_nans(self):
-        """Multiple NaN values should each produce NaN output."""
-        data = np.array([1.0, np.nan, 3.0, np.nan, 5.0], dtype=np.float64)
-        engine = rrc.MonotonicMax(3)
-        out = engine.process_batch(data)
-
-        assert np.isnan(out[1])
-        assert np.isnan(out[3])
-
-
-class TestMonotonicMaxInputValidation:
-    """Test input validation and error handling."""
-
-    def test_accepts_integer_input_with_conversion(self):
-        """Integer arrays are automatically converted to float64."""
-        data = np.array([1, 2, 3, 4, 5], dtype=np.int32)
-        engine = rrc.MonotonicMax(2)
-        out = engine.process_batch(data)
-
-        assert out.dtype == np.float64
-        assert len(out) == len(data)
-
-    def test_rejects_2d_array(self):
-        """2D arrays should raise error."""
-        data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64)
-        engine = rrc.MonotonicMax(2)
-
-        with pytest.raises(RuntimeError, match="Input must be 1D array"):
-            engine.process_batch(data)
-
-    def test_rejects_3d_array(self):
-        """3D arrays should raise error."""
-        data = np.arange(8.0).reshape((2, 2, 2))
-        engine = rrc.MonotonicMax(2)
-
-        with pytest.raises(RuntimeError):
-            engine.process_batch(data)
-
-    def test_rejects_zero_window_size(self):
-        """Window size 0 must raise ValueError."""
-        with pytest.raises(ValueError, match="Window length must be greater than 0"):
-            rrc.MonotonicMax(0)
-
-    @pytest.mark.parametrize("invalid_k", [-1, -5])
-    def test_rejects_negative_window_size(self, invalid_k):
-        """Negative window sizes cannot be mapped to std::size_t - raises TypeError."""
-        with pytest.raises(TypeError):
-            rrc.MonotonicMax(invalid_k)
-
-    def test_constructor_rejects_na_window(self):
-        """NA/None window values should be rejected."""
-        with pytest.raises(TypeError):
-            rrc.MonotonicMax(None)
-
-    def test_constructor_rejects_infinite_window(self):
-        """Infinite window values should be rejected or handled."""
-        # inf cannot be converted to size_t - should raise
-        with pytest.raises((ValueError, OverflowError, TypeError)):
-            rrc.MonotonicMax(float('inf'))
-
-
-class TestMonotonicMaxLargeData:
-    """Test with larger datasets."""
-
-    def test_large_array(self):
-        """Test with large random array."""
-        n = 10000
-        data = np.random.randn(n).astype(np.float64)
-        engine = rrc.MonotonicMax(10)
-        out = engine.process_batch(data)
-
-        assert len(out) == n
-
-    def test_very_large_window(self):
-        """Test with window size close to array length."""
-        data = np.arange(1000.0, dtype=np.float64)
-        engine = rrc.MonotonicMax(999)
-        out = engine.process_batch(data)
-
-        assert len(out) == 1000
-        # Last element should be cumulative max
-        assert out[-1] == np.max(data)
-
-
-# MULTISET MEDIAN (Rolling Median) Tests
-
-def _median_ref(x: np.ndarray, k: int) -> np.ndarray:
-    out = np.empty(len(x), dtype=np.float64)
+def _var_ref(x, k):
+    out = np.full(len(x), np.nan)
     for i in range(len(x)):
-        left = max(0, i - k + 1)
-        out[i] = np.median(x[left:i + 1])
+        w = x[max(0, i - k + 1):i + 1]
+        if len(w) >= 2:
+            out[i] = np.var(w, ddof=1)
     return out
 
 
-class TestMultisetMedianBaseline:
-
-    def test_known_values_odd_window(self):
-        data = np.array([1.0, 3.0, 2.0, 5.0, 4.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(3)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
-
-    def test_known_values_even_window(self):
-        data = np.array([1.0, 3.0, 2.0, 4.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(4)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 4), rtol=1e-12)
-
-    def test_return_type_is_float64(self):
-        data = np.array([1.0, 2.0, 3.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(2)
-        out = engine.process_batch(data)
-        assert out.dtype == np.float64
-        assert len(out) == len(data)
-
-    def test_output_length_matches_input(self):
-        for n in [1, 5, 10, 100]:
-            data = np.random.randn(n).astype(np.float64)
-            engine = rrc.MultisetMedian(3)
-            out = engine.process_batch(data)
-            assert len(out) == n
+def _median_ref(x, k):
+    return np.array([np.median(x[max(0, i - k + 1):i + 1]) for i in range(len(x))])
 
 
-class TestMultisetMedianEdgeCases:
+# ── C++ engine — SlidingWelford ────────────────────────────────────────────────
 
-    def test_window_size_one_returns_identity(self):
-        data = np.array([-1.0, 0.0, 10.0, 2.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(1)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, data, rtol=1e-12)
+class TestSlidingWelford:
+
+    def test_known_values(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        out = rrc.SlidingWelford(3).process_batch(x)
+        _nan_allclose(out, [np.nan, 0.5, 1.0, 1.0, 1.0])
+
+    def test_window_size_1_all_nan(self):
+        out = rrc.SlidingWelford(1).process_batch(np.array([10.0, 11.0, 12.0]))
+        assert np.all(np.isnan(out))
 
     def test_window_larger_than_array(self):
-        data = np.array([3.0, 1.0, 4.0, 1.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(20)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 20), rtol=1e-12)
+        out = rrc.SlidingWelford(10).process_batch(np.array([2.0, 4.0, 6.0]))
+        assert np.isnan(out[0])
+        assert np.isclose(out[1], 2.0, rtol=1e-12)   # var([2,4])
+        assert np.isclose(out[2], 4.0, rtol=1e-12)   # var([2,4,6])
 
-    def test_constant_values(self):
-        data = np.array([5.0] * 6, dtype=np.float64)
-        engine = rrc.MultisetMedian(3)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, 5.0, rtol=1e-12)
-
-    def test_empty_input(self):
-        data = np.array([], dtype=np.float64)
-        engine = rrc.MultisetMedian(3)
-        out = engine.process_batch(data)
-        assert len(out) == 0
-        assert out.dtype == np.float64
-
-    def test_window_size_2_sliding(self):
-        # Regression test: window_size=2 caused segfault before fix
-        data = np.array([3.0, 1.0, 2.0, 5.0, 4.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(2)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 2), rtol=1e-12)
-
-    def test_even_window_descending_fill(self):
-        # Regression test: even window filled in descending order caused wrong result
-        data = np.array([4.0, 3.0, 2.0, 1.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(4)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 4), rtol=1e-12)
-
-
-class TestMultisetMedianSequencePatterns:
-
-    def test_descending_sequence(self):
-        data = np.array([9.0, 7.0, 5.0, 3.0, 1.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(3)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
-
-    def test_ascending_sequence(self):
-        data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(3)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
-
-    def test_element_entering_equals_leaving(self):
-        data = np.array([1.0, 2.0, 3.0, 1.0, 2.0, 3.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(3)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
-
-    def test_negative_values(self):
-        data = np.array([-5.0, -1.0, -3.0, -2.0, -4.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(3)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
+    def test_constant_zero_variance(self):
+        out = rrc.SlidingWelford(4).process_batch(np.full(8, 5.0))
+        assert np.isnan(out[0])
+        np.testing.assert_allclose(out[1:], 0.0, atol=1e-12)
 
     @pytest.mark.parametrize("k", [2, 3, 5])
-    def test_against_reference_implementation(self, k):
-        x = np.array([-2.0, 6.0, 1.0, -8.0, 0.0, 8.0, -1.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(k)
-        out = engine.process_batch(x)
-        np.testing.assert_allclose(out, _median_ref(x, k), rtol=1e-12)
+    def test_against_naive_reference(self, k):
+        x = np.array([-3.0, -1.0, 0.0, 2.0, 10.0, 7.0, 7.0, 8.0])
+        out = rrc.SlidingWelford(k).process_batch(x)
+        np.testing.assert_allclose(out, _var_ref(x, k), rtol=1e-11, atol=1e-11,
+                                   equal_nan=True)
 
-    def test_duplicate_values(self):
-        data = np.array([5.0, 5.0, 5.0, 5.0, 5.0], dtype=np.float64)
-        engine = rrc.MultisetMedian(4)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, 5.0, rtol=1e-12)
+    def test_nan_does_not_contribute_to_welford(self):
+        # NaN at pos 2: window still holds [1,2], so var=0.5
+        x = np.array([1.0, 2.0, np.nan, 4.0, 5.0])
+        out = rrc.SlidingWelford(3).process_batch(x)
+        assert np.isclose(out[2], 0.5, atol=1e-12)
 
-    def test_large_array(self):
+    def test_empty_input(self):
+        out = rrc.SlidingWelford(3).process_batch(np.array([]))
+        assert len(out) == 0 and out.dtype == np.float64
+
+    def test_rejects_zero_window(self):
+        with pytest.raises(ValueError, match="Window length must be greater than 0"):
+            rrc.SlidingWelford(0)
+
+    @pytest.mark.parametrize("k", [-1, -5])
+    def test_rejects_negative_window(self, k):
+        with pytest.raises(TypeError):
+            rrc.SlidingWelford(k)
+
+    def test_rejects_none_window(self):
+        with pytest.raises(TypeError):
+            rrc.SlidingWelford(None)
+
+    def test_rejects_inf_window(self):
+        with pytest.raises((ValueError, OverflowError, TypeError)):
+            rrc.SlidingWelford(float("inf"))
+
+    def test_rejects_2d_input(self):
+        with pytest.raises(RuntimeError, match="Input must be 1D array"):
+            rrc.SlidingWelford(2).process_batch(np.ones((2, 3)))
+
+    def test_integer_input_converted_to_float64(self):
+        out = rrc.SlidingWelford(2).process_batch(np.array([1, 2, 3, 4], dtype=np.int32))
+        assert out.dtype == np.float64
+
+
+# ── C++ engine — MonotonicMax ──────────────────────────────────────────────────
+
+class TestMonotonicMax:
+
+    def test_known_values(self):
+        x = np.array([1.0, 2.0, 3.0, 2.0, 5.0])
+        out = rrc.MonotonicMax(3).process_batch(x)
+        np.testing.assert_allclose(out, [1.0, 2.0, 3.0, 3.0, 5.0], atol=1e-12)
+
+    def test_window_size_1_identity(self):
+        x = np.array([-1.0, 0.0, 10.0, 2.0])
+        np.testing.assert_allclose(rrc.MonotonicMax(1).process_batch(x), x)
+
+    def test_window_larger_than_array_cumulative(self):
+        x = np.array([2.0, -3.0, 7.0, 1.0])
+        np.testing.assert_allclose(rrc.MonotonicMax(20).process_batch(x),
+                                   np.maximum.accumulate(x))
+
+    def test_decreasing_sequence(self):
+        x = np.array([9.0, 7.0, 5.0, 3.0, 1.0])
+        np.testing.assert_allclose(rrc.MonotonicMax(3).process_batch(x),
+                                   [9.0, 9.0, 9.0, 7.0, 5.0])
+
+    @pytest.mark.parametrize("k", [2, 3, 5])
+    def test_against_naive_reference(self, k):
+        x = np.array([-2.0, 6.0, 1.0, 8.0, 0.0, 8.0, -1.0])
+        out = rrc.MonotonicMax(k).process_batch(x)
+        expected = np.array([np.max(x[max(0, i - k + 1):i + 1]) for i in range(len(x))])
+        np.testing.assert_allclose(out, expected, atol=1e-12)
+
+    def test_nan_advances_window_returns_current_max(self):
+        # window=2: [1,2,NaN,1]. At NaN: window=[2,NaN], max=2 (not NaN passthrough)
+        x = np.array([1.0, 2.0, np.nan, 1.0])
+        out = rrc.MonotonicMax(2).process_batch(x)
+        assert out[2] == 2.0
+
+    def test_nan_at_start_empty_window_returns_nan(self):
+        out = rrc.MonotonicMax(2).process_batch(np.array([np.nan, 2.0, 3.0]))
+        assert np.isnan(out[0])
+
+    def test_empty_input(self):
+        out = rrc.MonotonicMax(3).process_batch(np.array([]))
+        assert len(out) == 0 and out.dtype == np.float64
+
+    def test_rejects_zero_window(self):
+        with pytest.raises(ValueError, match="Window length must be greater than 0"):
+            rrc.MonotonicMax(0)
+
+    @pytest.mark.parametrize("k", [-1, -5])
+    def test_rejects_negative_window(self, k):
+        with pytest.raises(TypeError):
+            rrc.MonotonicMax(k)
+
+    def test_rejects_none_window(self):
+        with pytest.raises(TypeError):
+            rrc.MonotonicMax(None)
+
+    def test_rejects_inf_window(self):
+        with pytest.raises((ValueError, OverflowError, TypeError)):
+            rrc.MonotonicMax(float("inf"))
+
+    def test_rejects_2d_input(self):
+        with pytest.raises(RuntimeError, match="Input must be 1D array"):
+            rrc.MonotonicMax(2).process_batch(np.ones((2, 3)))
+
+    def test_integer_input_converted_to_float64(self):
+        out = rrc.MonotonicMax(2).process_batch(np.array([1, 2, 3], dtype=np.int32))
+        assert out.dtype == np.float64
+
+
+# ── C++ engine — MonotonicMin ──────────────────────────────────────────────────
+
+class TestMonotonicMin:
+
+    def test_known_values(self):
+        x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+        out = rrc.MonotonicMin(3).process_batch(x)
+        np.testing.assert_allclose(out, [1.0, 1.0, 1.0, 2.0, 2.0], atol=1e-12)
+
+    def test_window_size_1_identity(self):
+        x = np.array([-1.0, 0.0, 10.0, 2.0])
+        np.testing.assert_allclose(rrc.MonotonicMin(1).process_batch(x), x)
+
+    def test_window_larger_than_array_cumulative(self):
+        x = np.array([2.0, -3.0, 7.0, 1.0])
+        np.testing.assert_allclose(rrc.MonotonicMin(20).process_batch(x),
+                                   np.minimum.accumulate(x))
+
+    def test_increasing_sequence(self):
+        x = np.array([1.0, 3.0, 5.0, 7.0, 9.0])
+        np.testing.assert_allclose(rrc.MonotonicMin(3).process_batch(x),
+                                   [1.0, 1.0, 1.0, 3.0, 5.0])
+
+    @pytest.mark.parametrize("k", [2, 3, 5])
+    def test_against_naive_reference(self, k):
+        x = np.array([-2.0, 6.0, 1.0, 8.0, 0.0, 8.0, -1.0])
+        out = rrc.MonotonicMin(k).process_batch(x)
+        expected = np.array([np.min(x[max(0, i - k + 1):i + 1]) for i in range(len(x))])
+        np.testing.assert_allclose(out, expected, atol=1e-12)
+
+    def test_nan_advances_window_returns_current_min(self):
+        # window=2: [5,1,NaN,9]. At NaN: window=[1,NaN], min=1
+        x = np.array([5.0, 1.0, np.nan, 9.0])
+        out = rrc.MonotonicMin(2).process_batch(x)
+        assert out[2] == 1.0
+
+    def test_nan_at_start_empty_window_returns_nan(self):
+        out = rrc.MonotonicMin(2).process_batch(np.array([np.nan, 2.0, 3.0]))
+        assert np.isnan(out[0])
+
+    def test_empty_input(self):
+        out = rrc.MonotonicMin(3).process_batch(np.array([]))
+        assert len(out) == 0
+
+    def test_rejects_zero_window(self):
+        with pytest.raises(ValueError, match="Window length must be greater than 0"):
+            rrc.MonotonicMin(0)
+
+    def test_rejects_2d_input(self):
+        with pytest.raises(RuntimeError, match="Input must be 1D array"):
+            rrc.MonotonicMin(2).process_batch(np.ones((2, 3)))
+
+
+# ── C++ engine — MultisetMedian ───────────────────────────────────────────────
+
+class TestMultisetMedian:
+
+    def test_known_values_odd_window(self):
+        x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+        np.testing.assert_allclose(rrc.MultisetMedian(3).process_batch(x),
+                                   _median_ref(x, 3), rtol=1e-12)
+
+    def test_known_values_even_window(self):
+        x = np.array([1.0, 3.0, 2.0, 4.0])
+        np.testing.assert_allclose(rrc.MultisetMedian(4).process_batch(x),
+                                   _median_ref(x, 4), rtol=1e-12)
+
+    def test_window_size_1_identity(self):
+        x = np.array([-1.0, 0.0, 10.0, 2.0])
+        np.testing.assert_allclose(rrc.MultisetMedian(1).process_batch(x), x)
+
+    def test_window_size_2_regression(self):
+        # Regression: window_size=2 caused segfault before fix
+        x = np.array([3.0, 1.0, 2.0, 5.0, 4.0])
+        np.testing.assert_allclose(rrc.MultisetMedian(2).process_batch(x),
+                                   _median_ref(x, 2), rtol=1e-12)
+
+    def test_even_window_descending_fill_regression(self):
+        # Regression: even window filled descending caused wrong mid_ position
+        x = np.array([4.0, 3.0, 2.0, 1.0])
+        np.testing.assert_allclose(rrc.MultisetMedian(4).process_batch(x),
+                                   _median_ref(x, 4), rtol=1e-12)
+
+    @pytest.mark.parametrize("k", [2, 3, 5])
+    def test_against_naive_reference(self, k):
+        x = np.array([-2.0, 6.0, 1.0, -8.0, 0.0, 8.0, -1.0])
+        np.testing.assert_allclose(rrc.MultisetMedian(k).process_batch(x),
+                                   _median_ref(x, k), rtol=1e-12)
+
+    def test_large_array_against_reference(self):
         np.random.seed(42)
-        data = np.random.randn(1000).astype(np.float64)
+        x = np.random.randn(1000)
         k = 15
-        engine = rrc.MultisetMedian(k)
-        out = engine.process_batch(data)
-        np.testing.assert_allclose(out, _median_ref(data, k), rtol=1e-10)
+        np.testing.assert_allclose(rrc.MultisetMedian(k).process_batch(x),
+                                   _median_ref(x, k), rtol=1e-10)
 
+    def test_element_entering_equals_leaving(self):
+        x = np.array([1.0, 2.0, 3.0, 1.0, 2.0, 3.0])
+        np.testing.assert_allclose(rrc.MultisetMedian(3).process_batch(x),
+                                   _median_ref(x, 3), rtol=1e-12)
 
-class TestMultisetMedianInputValidation:
+    def test_window_larger_than_array(self):
+        x = np.array([3.0, 1.0, 4.0, 1.0])
+        np.testing.assert_allclose(rrc.MultisetMedian(20).process_batch(x),
+                                   _median_ref(x, 20), rtol=1e-12)
 
-    def test_rejects_zero_window_size(self):
+    def test_empty_input(self):
+        out = rrc.MultisetMedian(3).process_batch(np.array([]))
+        assert len(out) == 0 and out.dtype == np.float64
+
+    def test_rejects_zero_window(self):
         with pytest.raises(ValueError, match="Window length must be greater than 0"):
             rrc.MultisetMedian(0)
-
-    @pytest.mark.parametrize("invalid_k", [-1, -5])
-    def test_rejects_negative_window_size(self, invalid_k):
-        with pytest.raises(TypeError):
-            rrc.MultisetMedian(invalid_k)
 
     def test_rejects_none_window(self):
         with pytest.raises(TypeError):
             rrc.MultisetMedian(None)
 
-    def test_rejects_2d_array(self):
-        data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64)
-        engine = rrc.MultisetMedian(2)
+    def test_rejects_2d_input(self):
         with pytest.raises(RuntimeError, match="Input must be 1D array"):
-            engine.process_batch(data)
+            rrc.MultisetMedian(2).process_batch(np.ones((2, 3)))
 
-    def test_accepts_integer_input_with_conversion(self):
-        data = np.array([1, 2, 3, 4, 5], dtype=np.int32)
-        engine = rrc.MultisetMedian(2)
-        out = engine.process_batch(data)
+    def test_integer_input_converted_to_float64(self):
+        out = rrc.MultisetMedian(2).process_batch(np.array([1, 2, 3], dtype=np.int32))
         assert out.dtype == np.float64
 
 
-# PANDAS INTEGRATION Tests
+# ── High-level API — output type preservation ─────────────────────────────────
 
-import robustrolling as rr
-import pandas as pd
+_ALL_FNS = [rr.rolling_max, rr.rolling_min, rr.rolling_median, rr.rolling_variance]
 
 
-class TestPandasIntegration:
+class TestOutputType:
 
-    def test_rolling_max_preserves_index(self):
+    @pytest.mark.parametrize("fn", _ALL_FNS)
+    def test_series_input_returns_series(self, fn):
+        s = pd.Series([1.0, 3.0, 2.0, 5.0, 4.0], name="x")
+        out = fn(s, 3)
+        assert isinstance(out, pd.Series)
+        assert out.name == "x"
+
+    @pytest.mark.parametrize("fn", _ALL_FNS)
+    def test_series_preserves_datetime_index(self, fn):
         idx = pd.date_range("2024-01-01", periods=5)
         s = pd.Series([1.0, 3.0, 2.0, 5.0, 4.0], index=idx)
-        out = rr.rolling_max(s, 3)
+        out = fn(s, 3)
         assert isinstance(out, pd.Series)
         assert out.index.equals(idx)
 
-    def test_rolling_median_preserves_name(self):
-        s = pd.Series([1.0, 3.0, 2.0, 5.0], name="price")
-        out = rr.rolling_median(s, 2)
-        assert isinstance(out, pd.Series)
-        assert out.name == "price"
-
-    def test_rolling_variance_preserves_index(self):
+    @pytest.mark.parametrize("fn", _ALL_FNS)
+    def test_series_preserves_range_index(self, fn):
         idx = pd.RangeIndex(start=10, stop=15)
-        s = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0], index=idx)
-        out = rr.rolling_variance(s, 3)
-        assert isinstance(out, pd.Series)
-        assert out.index.equals(idx)
+        s = pd.Series([1.0, 3.0, 2.0, 5.0, 4.0], index=idx)
+        assert fn(s, 3).index.equals(idx)
 
-    def test_numpy_input_returns_ndarray(self):
+    @pytest.mark.parametrize("fn", _ALL_FNS)
+    def test_ndarray_input_returns_ndarray(self, fn):
         arr = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
-        assert isinstance(rr.rolling_max(arr, 3), np.ndarray)
-        assert isinstance(rr.rolling_median(arr, 3), np.ndarray)
-        assert isinstance(rr.rolling_variance(arr, 3), np.ndarray)
+        assert isinstance(fn(arr, 3), np.ndarray)
 
-    def test_values_match_reference(self):
-        s = pd.Series([1.0, 3.0, 2.0, 5.0, 4.0])
-        out = rr.rolling_max(s, 3)
-        expected = pd.Series([1.0, 3.0, 3.0, 5.0, 5.0])
-        pd.testing.assert_series_equal(out, expected)
+    @pytest.mark.parametrize("fn", _ALL_FNS)
+    def test_output_length_equals_input_length(self, fn):
+        arr = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+        assert len(fn(arr, 3)) == len(arr)
+
+
+# ── High-level API — pandas value comparison ──────────────────────────────────
+#
+# Each case is (data, k, min_periods).  None → default (= window_size).
+# Tested against the equivalent pandas rolling call.
+
+_PANDAS_CASES = [
+    # label,                          data,                                    k   mp
+    ("clean_default",   [1.0, 3.0, 2.0, 5.0, 4.0],                          3,  None),
+    ("clean_mp1",       [1.0, 3.0, 2.0, 5.0, 4.0],                          3,  1),
+    ("clean_mp2",       [1.0, 3.0, 2.0, 5.0, 4.0],                          3,  2),
+    ("longer_default",  [-2.0, 6.0, 1.0, 8.0, 0.0, 8.0, -1.0],             4,  None),
+    ("longer_mp2",      [-2.0, 6.0, 1.0, 8.0, 0.0, 8.0, -1.0],             4,  2),
+    ("nan_mp1",         [1.0, np.nan, 3.0, 4.0, 5.0],                        3,  1),
+    ("nan_mp2",         [1.0, np.nan, 3.0, 4.0, 5.0],                        3,  2),
+    ("nan_default",     [1.0, np.nan, 3.0, 4.0, 5.0],                        3,  None),
+    ("leading_nans",    [np.nan, np.nan, 3.0, 4.0],                          2,  1),
+    ("k_gt_n",          [1.0, 2.0, 3.0],                                     10, 1),
+    ("constant",        [5.0] * 6,                                            3,  None),
+    ("negatives_mp1",   [-5.0, -1.0, -3.0, -2.0, -4.0],                     3,  1),
+    ("mixed_nan_mp1",   [np.nan, 1.0, np.nan, 3.0, np.nan],                  2,  1),
+    ("window2_nan_gap", [5.0, 1.0, np.nan, 0.0],                             2,  1),
+]
+
+_CASE_IDS = [c[0] for c in _PANDAS_CASES]
+_CASE_PARAMS = [(c[1], c[2], c[3]) for c in _PANDAS_CASES]  # (data, k, mp)
+
+
+def _pd_mp(mp, k):
+    """Resolve None → k for pandas min_periods argument."""
+    return k if mp is None else mp
+
+
+class TestPandasComparison:
+    """rolling_max/min/median/variance must produce values identical to pandas."""
+
+    @pytest.mark.parametrize("data,k,mp", _CASE_PARAMS, ids=_CASE_IDS)
+    def test_rolling_max_matches_pandas(self, data, k, mp):
+        arr = np.array(data, dtype=np.float64)
+        expected = pd.Series(arr).rolling(k, min_periods=_pd_mp(mp, k)).max().to_numpy()
+        kw = {} if mp is None else {"min_periods": mp}
+        _nan_allclose(rr.rolling_max(arr, k, **kw), expected)
+
+    @pytest.mark.parametrize("data,k,mp", _CASE_PARAMS, ids=_CASE_IDS)
+    def test_rolling_min_matches_pandas(self, data, k, mp):
+        arr = np.array(data, dtype=np.float64)
+        expected = pd.Series(arr).rolling(k, min_periods=_pd_mp(mp, k)).min().to_numpy()
+        kw = {} if mp is None else {"min_periods": mp}
+        _nan_allclose(rr.rolling_min(arr, k, **kw), expected)
+
+    @pytest.mark.parametrize("data,k,mp", _CASE_PARAMS, ids=_CASE_IDS)
+    def test_rolling_median_matches_pandas(self, data, k, mp):
+        arr = np.array(data, dtype=np.float64)
+        expected = pd.Series(arr).rolling(k, min_periods=_pd_mp(mp, k)).median().to_numpy()
+        kw = {} if mp is None else {"min_periods": mp}
+        _nan_allclose(rr.rolling_median(arr, k, **kw), expected)
+
+    @pytest.mark.parametrize("data,k,mp", _CASE_PARAMS, ids=_CASE_IDS)
+    def test_rolling_variance_matches_pandas(self, data, k, mp):
+        arr = np.array(data, dtype=np.float64)
+        expected = pd.Series(arr).rolling(k, min_periods=_pd_mp(mp, k)).var().to_numpy()
+        kw = {} if mp is None else {"min_periods": mp}
+        _nan_allclose(rr.rolling_variance(arr, k, **kw), expected)
+
+
+# ── High-level API — min_periods edge cases ───────────────────────────────────
+
+class TestMinPeriods:
+
+    def test_default_equals_window_size_max_min_median(self):
+        """First k-1 positions are NaN with default min_periods."""
+        x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+        for fn in (rr.rolling_max, rr.rolling_min, rr.rolling_median):
+            out = fn(x, 3)
+            assert np.isnan(out[0]) and np.isnan(out[1]) and not np.isnan(out[2])
+
+    def test_default_equals_window_size_variance(self):
+        """Variance: first k-1 positions NaN; pos k-1 has valid value."""
+        out = rr.rolling_variance(np.array([1.0, 2.0, 3.0, 4.0]), 3)
+        assert np.isnan(out[0]) and np.isnan(out[1])
+        assert pytest.approx(out[2], abs=1e-10) == 1.0
+
+    def test_min_periods_0_no_masking_on_clean_input(self):
+        """min_periods=0 never adds extra NaN for clean (non-NaN) input."""
+        x = np.array([1.0, 2.0, 3.0, 4.0])
+        for fn in (rr.rolling_max, rr.rolling_min, rr.rolling_median):
+            assert not np.any(np.isnan(fn(x, 3, min_periods=0)))
+
+    def test_nan_series_default_all_masked(self):
+        """[1,nan,3,4] window=3: non_na_count=[1,1,2,2], all < 3 → all NaN."""
+        x = np.array([1.0, np.nan, 3.0, 4.0])
+        for fn in (rr.rolling_max, rr.rolling_min, rr.rolling_median):
+            assert np.all(np.isnan(fn(x, 3)))
+
+    def test_window_expiry_max_nan_gap(self):
+        """Value before NaN gap must expire: [5,1,NaN,0] window=2."""
+        x = np.array([5.0, 1.0, np.nan, 0.0])
+        out = rr.rolling_max(x, 2, min_periods=1)
+        assert pytest.approx(out[2], abs=1e-12) == 1.0  # window=[1,nan], max=1
+        assert pytest.approx(out[3], abs=1e-12) == 0.0  # window=[nan,0], max=0
+
+    def test_window_expiry_min_nan_gap(self):
+        """Value before NaN gap must expire: [1,5,NaN,9] window=2."""
+        x = np.array([1.0, 5.0, np.nan, 9.0])
+        out = rr.rolling_min(x, 2, min_periods=1)
+        assert pytest.approx(out[2], abs=1e-12) == 5.0  # window=[5,nan], min=5
+        assert pytest.approx(out[3], abs=1e-12) == 9.0  # window=[nan,9], min=9
+
+    @pytest.mark.parametrize("fn", _ALL_FNS)
+    def test_validation_negative_min_periods(self, fn):
+        with pytest.raises(Exception):
+            fn(np.array([1.0, 2.0, 3.0]), 3, min_periods=-1)
+
+    @pytest.mark.parametrize("fn", _ALL_FNS)
+    def test_validation_min_periods_exceeds_window(self, fn):
+        with pytest.raises(Exception):
+            fn(np.array([1.0, 2.0, 3.0]), 3, min_periods=4)
+
+    @pytest.mark.parametrize("fn", _ALL_FNS)
+    def test_empty_input_returns_empty(self, fn):
+        out = fn(np.array([]), 3)
+        assert len(out) == 0
+
+    def test_variance_min_periods_1_single_value_is_nan(self):
+        """With min_periods=1, pos 0 is still NaN: var needs ≥2 values (ddof=1).
+        This NaN comes from the algorithm, not min_periods masking."""
+        out = rr.rolling_variance(np.array([1.0, 5.0]), 2, min_periods=1)
+        assert np.isnan(out[0])
+        assert pytest.approx(out[1], abs=1e-10) == 8.0  # var([1,5]) = 8
+
+
+# ── Memory layout and dtype robustness ────────────────────────────────────────
+
+_ENGINE_CLASSES = [rrc.MonotonicMax, rrc.MonotonicMin, rrc.MultisetMedian, rrc.SlidingWelford]
+_ENGINE_IDS = ["MonotonicMax", "MonotonicMin", "MultisetMedian", "SlidingWelford"]
+
+
+class TestMemoryLayoutAndDtypes:
+    """Verify pybind11 c_style|forcecast handles non-standard memory layouts and dtypes."""
+
+    @pytest.mark.parametrize("cls", _ENGINE_CLASSES, ids=_ENGINE_IDS)
+    def test_strided_every_other_element(self, cls):
+        """Non-contiguous array (stride=2) must give same result as contiguous copy."""
+        x = np.arange(10, dtype=np.float64)
+        strided = x[::2]                                # [0,2,4,6,8] — NOT C_CONTIGUOUS
+        assert not strided.flags["C_CONTIGUOUS"]
+        out_strided = cls(2).process_batch(strided)
+        out_contig  = cls(2).process_batch(np.ascontiguousarray(strided))
+        np.testing.assert_array_equal(out_strided, out_contig)
+
+    @pytest.mark.parametrize("cls", _ENGINE_CLASSES, ids=_ENGINE_IDS)
+    def test_strided_column_slice(self, cls):
+        """Column of a 2D array is non-contiguous — must still work correctly."""
+        m = np.arange(16.0).reshape(8, 2)
+        col = m[:, 0]                                   # [0,2,4,6,8,10,12,14]
+        assert not col.flags["C_CONTIGUOUS"]
+        out_col    = cls(3).process_batch(col)
+        out_contig = cls(3).process_batch(np.ascontiguousarray(col))
+        np.testing.assert_array_equal(out_col, out_contig)
+
+    @pytest.mark.parametrize("cls", _ENGINE_CLASSES, ids=_ENGINE_IDS)
+    def test_strided_reversed(self, cls):
+        """Reverse-strided array (negative step) must work correctly."""
+        x = np.arange(8, dtype=np.float64)
+        rev = x[::-1]                                   # [7,6,5,4,3,2,1,0]
+        assert not rev.flags["C_CONTIGUOUS"]
+        out_rev    = cls(2).process_batch(rev)
+        out_contig = cls(2).process_batch(np.ascontiguousarray(rev))
+        np.testing.assert_array_equal(out_rev, out_contig)
+
+    @pytest.mark.parametrize("dtype", [np.float32, np.int32, np.int64],
+                             ids=["float32", "int32", "int64"])
+    def test_numeric_dtype_cast_in_engine(self, dtype):
+        """C++ engine accepts numeric dtypes via forcecast → output is always float64."""
+        x = np.array([1, 3, 2, 5, 4], dtype=dtype)
+        out = rrc.MonotonicMax(3).process_batch(x)
+        assert out.dtype == np.float64
+        np.testing.assert_allclose(out, rrc.MonotonicMax(3).process_batch(x.astype(np.float64)))
+
+    @pytest.mark.parametrize("fn", _ALL_FNS, ids=["max", "min", "median", "variance"])
+    @pytest.mark.parametrize("dtype", [np.float32, np.int64, np.bool_],
+                             ids=["float32", "int64", "bool"])
+    def test_numeric_dtype_in_high_level_api(self, fn, dtype):
+        """High-level API must handle any numeric dtype, returning float64."""
+        x = np.array([1, 3, 2, 5, 4], dtype=dtype)
+        out = fn(x, 3)
+        assert out.dtype == np.float64
+        _nan_allclose(out, fn(x.astype(np.float64), 3))
+
+    @pytest.mark.parametrize("fn", _ALL_FNS, ids=["max", "min", "median", "variance"])
+    def test_strided_high_level_api(self, fn):
+        """High-level API must give same result for strided and contiguous input."""
+        base = np.array([1.0, 3.0, 2.0, 7.0, 4.0, 6.0, 5.0, 8.0])
+        strided = base[::2]                             # [1,2,4,5] — non-contiguous
+        assert not strided.flags["C_CONTIGUOUS"]
+        out_s = fn(strided, 2)
+        out_c = fn(np.ascontiguousarray(strided), 2)
+        _nan_allclose(np.asarray(out_s), np.asarray(out_c))
+
+
+# ── Fuzz / stress tests ────────────────────────────────────────────────────────
+
+class TestFuzz:
+    """Large random-NaN arrays compared against pandas — catches edge cases
+    in MultisetMedian mid_ tracking and SlidingWelfordRing under churn."""
+
+    @pytest.mark.parametrize("fn,pd_fn", [
+        (rr.rolling_max,      lambda s, k, mp: s.rolling(k, min_periods=mp).max().to_numpy()),
+        (rr.rolling_min,      lambda s, k, mp: s.rolling(k, min_periods=mp).min().to_numpy()),
+        (rr.rolling_median,   lambda s, k, mp: s.rolling(k, min_periods=mp).median().to_numpy()),
+        (rr.rolling_variance, lambda s, k, mp: s.rolling(k, min_periods=mp).var().to_numpy()),
+    ], ids=["max", "min", "median", "variance"])
+    def test_random_nan_20pct_matches_pandas(self, fn, pd_fn):
+        np.random.seed(42)
+        x = np.random.randn(5000)
+        x[np.random.rand(5000) < 0.2] = np.nan
+        k, mp = 15, 5
+        _nan_allclose(fn(x, k, min_periods=mp),
+                      pd_fn(pd.Series(x), k, mp),
+                      rtol=1e-10, atol=1e-10)
+
+    @pytest.mark.parametrize("fn,pd_fn", [
+        (rr.rolling_max,      lambda s, k, mp: s.rolling(k, min_periods=mp).max().to_numpy()),
+        (rr.rolling_min,      lambda s, k, mp: s.rolling(k, min_periods=mp).min().to_numpy()),
+        (rr.rolling_median,   lambda s, k, mp: s.rolling(k, min_periods=mp).median().to_numpy()),
+        (rr.rolling_variance, lambda s, k, mp: s.rolling(k, min_periods=mp).var().to_numpy()),
+    ], ids=["max", "min", "median", "variance"])
+    def test_consecutive_nan_blocks_matches_pandas(self, fn, pd_fn):
+        """Long runs of NaN stress-test window expiry logic."""
+        np.random.seed(7)
+        x = np.random.randn(2000)
+        # Insert 3 blocks of 20 consecutive NaN
+        for start in [100, 500, 1400]:
+            x[start:start + 20] = np.nan
+        k, mp = 10, 3
+        _nan_allclose(fn(x, k, min_periods=mp),
+                      pd_fn(pd.Series(x), k, mp),
+                      rtol=1e-10, atol=1e-10)
+
+    def test_stress_many_instances_no_crash(self):
+        """Create and discard 2000 instances — verifies no resource leak crashes."""
+        x = np.random.randn(100).astype(np.float64)
+        for _ in range(2000):
+            rrc.MultisetMedian(10).process_batch(x)

@@ -18,18 +18,21 @@ public:
     return static_cast<const Derived *>(this)->current_size_impl();
   }
 
+  void skip() { static_cast<Derived *>(this)->skip_impl(); }
+
   void process_batch(const double *input_data, std::size_t length,
                      double *output_data) {
     for (std::size_t i = 0; i < length; ++i) {
-      double current_tick = input_data[i];
-
-      if (std::isnan(current_tick)) {
-        output_data[i] = std::numeric_limits<double>::quiet_NaN();
+      if (std::isnan(input_data[i])) {
+        this->skip();
+        output_data[i] = this->get_value();
       } else {
-        this->update(current_tick);
+        this->update(input_data[i]);
         output_data[i] = this->get_value();
       }
     }
   }
-};
 
+protected:
+  void skip_impl() {}
+};

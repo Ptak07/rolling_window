@@ -22,6 +22,14 @@ double MonotonicMin::get_min() const {
   return get_value();
 }
 
+void MonotonicMin::skip_impl() {
+  while (!deque_.empty() &&
+         current_tick_ - deque_.front().tick_index >= window_size_) {
+    deque_.pop_front();
+  }
+  current_tick_++;
+}
+
 void MonotonicMin::update_impl(double value) {
   while (!deque_.empty() && deque_.back().value > value) {
     deque_.pop_back();

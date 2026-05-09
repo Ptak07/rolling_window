@@ -16,6 +16,7 @@ public:
 
 private:
   void update_impl(double value);
+  void skip_impl();
   double get_value_impl() const;
   std::size_t current_size_impl() const;
 

@@ -7,7 +7,7 @@ SlidingWelfordRing::SlidingWelfordRing(std::size_t window_size)
     throw std::invalid_argument("Window length must be greater than 0");
   }
 
-  buffer_.resize(window_size);
+  buffer_.resize(window_size, std::numeric_limits<double>::quiet_NaN());
 }
 
 std::size_t SlidingWelfordRing::current_size_impl() const {
@@ -33,29 +33,59 @@ double SlidingWelfordRing::get_std_dev() const {
   return std::sqrt(get_variance());
 }
 
-void SlidingWelfordRing::update_impl(double value) {
-  if (count_ == window_size_) {
-    if (window_size_ == 1) {
-      mean_ = 0.0;
-      M2_ = 0.0;
-    } else {
-      double x_out = buffer_[head_];
-      double delta_out = x_out - mean_;
-      mean_ -= delta_out / (window_size_ - 1);
-      M2_ -= delta_out * (x_out - mean_);
-    }
-  } else {
-    count_++;
+// Remove x_out from Welford running statistics (count_ already decremented).
+static void welford_remove(double x_out, double &mean_, double &M2_,
+                           std::size_t count_) {
+  if (count_ == 0) {
+    mean_ = 0.0;
+    M2_ = 0.0;
+    return;
   }
-  buffer_[head_] = value;
-
-  double delta = value - mean_;
-  mean_ += delta / count_;
-  M2_ += delta * (value - mean_);
-
-  head_++;
-  if (head_ == window_size_) {
-    head_ = 0;
-  }
+  double delta_out = x_out - mean_;
+  mean_ -= delta_out / static_cast<double>(count_);
+  M2_ -= delta_out * (x_out - mean_);
+  M2_ = std::max(0.0, M2_);
 }
 
+void SlidingWelfordRing::update_impl(double value) {
+  bool ring_full = (n_written_ >= window_size_);
+
+  if (ring_full) {
+    double x_out = buffer_[head_];
+    if (!std::isnan(x_out)) {
+      count_--;
+      welford_remove(x_out, mean_, M2_, count_);
+    }
+  }
+
+  buffer_[head_] = value;
+  head_++;
+  if (head_ == window_size_)
+    head_ = 0;
+  if (!ring_full)
+    n_written_++;
+
+  count_++;
+  double delta = value - mean_;
+  mean_ += delta / static_cast<double>(count_);
+  M2_ += delta * (value - mean_);
+}
+
+void SlidingWelfordRing::skip_impl() {
+  bool ring_full = (n_written_ >= window_size_);
+
+  if (ring_full) {
+    double x_out = buffer_[head_];
+    if (!std::isnan(x_out)) {
+      count_--;
+      welford_remove(x_out, mean_, M2_, count_);
+    }
+  }
+
+  buffer_[head_] = std::numeric_limits<double>::quiet_NaN();
+  head_++;
+  if (head_ == window_size_)
+    head_ = 0;
+  if (!ring_full)
+    n_written_++;
+}

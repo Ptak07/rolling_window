@@ -6,7 +6,7 @@ TEST(MultisetMedianTest, HandlesInitialization) {
   MultisetMedian sm(3);
   EXPECT_EQ(sm.current_size(), 0);
 
-  EXPECT_THROW(sm.get_median(), std::logic_error);
+  EXPECT_TRUE(std::isnan(sm.get_median()));
 }
 
 TEST(MultisetMedianTest, HandlesWarmUpPhase) {
@@ -51,7 +51,7 @@ TEST(MultisetMedianTest, CrtpInterfaceMatchesMedian) {
   MultisetMedian sm(3);
   RollingMetric<MultisetMedian> &base = sm;
 
-  EXPECT_THROW(base.get_value(), std::logic_error);
+  EXPECT_TRUE(std::isnan(base.get_value()));
 
   base.update(7.0);
   base.update(1.0);

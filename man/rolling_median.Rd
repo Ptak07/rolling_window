@@ -4,20 +4,22 @@
 \alias{rolling_median}
 \title{Rolling Median}
 \usage{
-rolling_median(x, window_size)
+rolling_median(x, window_size, min_periods = window_size)
 }
 \arguments{
 \item{x}{A numeric vector of type double.}
 
 \item{window_size}{Positive integer window length.}
+
+\item{min_periods}{Minimum number of non-\code{NA} observations required in
+a window to return a result. Defaults to \code{window_size}.}
 }
 \value{
 A numeric vector with rolling median values.
 }
 \description{
-Computes the rolling median over a numeric vector using
-an ordered multiset with a tracked median iterator.
-Time complexity: O(log n) per element.
+Computes the rolling median over a numeric vector using an ordered multiset
+with a tracked median iterator. Time complexity: O(log n) per element.
 }
 \examples{
 x <- as.double(c(1, 3, 2, 5, 4))

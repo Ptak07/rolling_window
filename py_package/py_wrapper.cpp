@@ -1,4 +1,5 @@
 #include "../include/MonotonicMax.hpp"
+#include "../include/MonotonicMin.hpp"
 #include "../include/MultisetMedian.hpp"
 #include "../include/SlidingWelfordRing.hpp"
 #include <pybind11/numpy.h>
@@ -27,11 +28,12 @@ py::array_t<double> process_batch_generic(
   for (py::ssize_t i = 0; i < in_info.shape[0]; ++i) {
     const double value = in_ptr[i];
     if (std::isnan(value)) {
-      out_ptr[i] = std::numeric_limits<double>::quiet_NaN();
-      continue;
+      metric.skip();
+      out_ptr[i] = getter(metric);
+    } else {
+      metric.update(value);
+      out_ptr[i] = getter(metric);
     }
-    metric.update(value);
-    out_ptr[i] = getter(metric);
   }
 
   return result_array;
@@ -65,6 +67,18 @@ PYBIND11_MODULE(robust_rolling_core, m) {
                  self, input, [](MonotonicMax &m) { return m.get_max(); });
            });
 
+  py::class_<MonotonicMin>(m, "MonotonicMin")
+      .def(py::init<std::size_t>())
+      .def("update", &MonotonicMin::update)
+      .def("get_min", &MonotonicMin::get_min)
+      .def("process_batch",
+           [](MonotonicMin &self,
+              py::array_t<double, py::array::c_style | py::array::forcecast>
+                  input) {
+             return process_batch_generic(
+                 self, input, [](MonotonicMin &m) { return m.get_min(); });
+           });
+
   py::class_<MultisetMedian>(m, "MultisetMedian")
       .def(py::init<std::size_t>())
       .def("update", &MultisetMedian::update)
@@ -74,6 +88,7 @@ PYBIND11_MODULE(robust_rolling_core, m) {
               py::array_t<double, py::array::c_style | py::array::forcecast>
                   input) {
              return process_batch_generic(
-                 self, input, [](MultisetMedian &m) { return m.get_median(); });
+                 self, input,
+                 [](MultisetMedian &m) { return m.get_median(); });
            });
 }

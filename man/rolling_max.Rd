@@ -4,19 +4,21 @@
 \alias{rolling_max}
 \title{Rolling Maximum}
 \usage{
-rolling_max(x, window_size)
+rolling_max(x, window_size, min_periods = window_size)
 }
 \arguments{
 \item{x}{A numeric vector of type double.}
 
 \item{window_size}{Positive integer window length.}
+
+\item{min_periods}{Minimum number of non-\code{NA} observations required in
+a window to return a result. Defaults to \code{window_size}.}
 }
 \value{
 A numeric vector with rolling maximum values.
 }
 \description{
-Computes the rolling maximum over a numeric vector using
-a monotonic deque.
+Computes the rolling maximum over a numeric vector using a monotonic deque.
 }
 \examples{
 x <- as.double(c(1, 3, 2, 5, 4))

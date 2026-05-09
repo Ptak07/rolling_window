@@ -22,6 +22,14 @@ double MonotonicMax::get_max() const {
   return get_value();
 }
 
+void MonotonicMax::skip_impl() {
+  while (!deque_.empty() &&
+         current_tick_ - deque_.front().tick_index >= window_size_) {
+    deque_.pop_front();
+  }
+  current_tick_++;
+}
+
 void MonotonicMax::update_impl(double value) {
   while (!deque_.empty() && deque_.back().value < value) {
     deque_.pop_back();
