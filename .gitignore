@@ -27,4 +27,10 @@ src/SlidingWelfordRing.cpp
 inst/include/
 
 .DS_Store
-.venv
+.venv/
+
+# Python package artifacts
+py_package/dist/
+py_package/venv/
+__pycache__/
+*.pyc

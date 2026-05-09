@@ -440,3 +440,160 @@ class TestMonotonicMaxLargeData:
         assert len(out) == 1000
         # Last element should be cumulative max
         assert out[-1] == np.max(data)
+
+
+# MULTISET MEDIAN (Rolling Median) Tests
+
+def _median_ref(x: np.ndarray, k: int) -> np.ndarray:
+    out = np.empty(len(x), dtype=np.float64)
+    for i in range(len(x)):
+        left = max(0, i - k + 1)
+        out[i] = np.median(x[left:i + 1])
+    return out
+
+
+class TestMultisetMedianBaseline:
+
+    def test_known_values_odd_window(self):
+        data = np.array([1.0, 3.0, 2.0, 5.0, 4.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(3)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
+
+    def test_known_values_even_window(self):
+        data = np.array([1.0, 3.0, 2.0, 4.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(4)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 4), rtol=1e-12)
+
+    def test_return_type_is_float64(self):
+        data = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(2)
+        out = engine.process_batch(data)
+        assert out.dtype == np.float64
+        assert len(out) == len(data)
+
+    def test_output_length_matches_input(self):
+        for n in [1, 5, 10, 100]:
+            data = np.random.randn(n).astype(np.float64)
+            engine = rrc.MultisetMedian(3)
+            out = engine.process_batch(data)
+            assert len(out) == n
+
+
+class TestMultisetMedianEdgeCases:
+
+    def test_window_size_one_returns_identity(self):
+        data = np.array([-1.0, 0.0, 10.0, 2.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(1)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, data, rtol=1e-12)
+
+    def test_window_larger_than_array(self):
+        data = np.array([3.0, 1.0, 4.0, 1.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(20)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 20), rtol=1e-12)
+
+    def test_constant_values(self):
+        data = np.array([5.0] * 6, dtype=np.float64)
+        engine = rrc.MultisetMedian(3)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, 5.0, rtol=1e-12)
+
+    def test_empty_input(self):
+        data = np.array([], dtype=np.float64)
+        engine = rrc.MultisetMedian(3)
+        out = engine.process_batch(data)
+        assert len(out) == 0
+        assert out.dtype == np.float64
+
+    def test_window_size_2_sliding(self):
+        # Regression test: window_size=2 caused segfault before fix
+        data = np.array([3.0, 1.0, 2.0, 5.0, 4.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(2)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 2), rtol=1e-12)
+
+    def test_even_window_descending_fill(self):
+        # Regression test: even window filled in descending order caused wrong result
+        data = np.array([4.0, 3.0, 2.0, 1.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(4)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 4), rtol=1e-12)
+
+
+class TestMultisetMedianSequencePatterns:
+
+    def test_descending_sequence(self):
+        data = np.array([9.0, 7.0, 5.0, 3.0, 1.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(3)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
+
+    def test_ascending_sequence(self):
+        data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(3)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
+
+    def test_element_entering_equals_leaving(self):
+        data = np.array([1.0, 2.0, 3.0, 1.0, 2.0, 3.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(3)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
+
+    def test_negative_values(self):
+        data = np.array([-5.0, -1.0, -3.0, -2.0, -4.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(3)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, 3), rtol=1e-12)
+
+    @pytest.mark.parametrize("k", [2, 3, 5])
+    def test_against_reference_implementation(self, k):
+        x = np.array([-2.0, 6.0, 1.0, -8.0, 0.0, 8.0, -1.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(k)
+        out = engine.process_batch(x)
+        np.testing.assert_allclose(out, _median_ref(x, k), rtol=1e-12)
+
+    def test_duplicate_values(self):
+        data = np.array([5.0, 5.0, 5.0, 5.0, 5.0], dtype=np.float64)
+        engine = rrc.MultisetMedian(4)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, 5.0, rtol=1e-12)
+
+    def test_large_array(self):
+        np.random.seed(42)
+        data = np.random.randn(1000).astype(np.float64)
+        k = 15
+        engine = rrc.MultisetMedian(k)
+        out = engine.process_batch(data)
+        np.testing.assert_allclose(out, _median_ref(data, k), rtol=1e-10)
+
+
+class TestMultisetMedianInputValidation:
+
+    def test_rejects_zero_window_size(self):
+        with pytest.raises(ValueError, match="Window length must be greater than 0"):
+            rrc.MultisetMedian(0)
+
+    @pytest.mark.parametrize("invalid_k", [-1, -5])
+    def test_rejects_negative_window_size(self, invalid_k):
+        with pytest.raises(TypeError):
+            rrc.MultisetMedian(invalid_k)
+
+    def test_rejects_none_window(self):
+        with pytest.raises(TypeError):
+            rrc.MultisetMedian(None)
+
+    def test_rejects_2d_array(self):
+        data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64)
+        engine = rrc.MultisetMedian(2)
+        with pytest.raises(RuntimeError, match="Input must be 1D array"):
+            engine.process_batch(data)
+
+    def test_accepts_integer_input_with_conversion(self):
+        data = np.array([1, 2, 3, 4, 5], dtype=np.int32)
+        engine = rrc.MultisetMedian(2)
+        out = engine.process_batch(data)
+        assert out.dtype == np.float64

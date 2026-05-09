@@ -1,4 +1,5 @@
 #include "../include/MonotonicMax.hpp"
+#include "../include/MultisetMedian.hpp"
 #include "../include/SlidingWelfordRing.hpp"
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -62,5 +63,17 @@ PYBIND11_MODULE(robust_rolling_core, m) {
                   input) {
              return process_batch_generic(
                  self, input, [](MonotonicMax &m) { return m.get_max(); });
+           });
+
+  py::class_<MultisetMedian>(m, "MultisetMedian")
+      .def(py::init<std::size_t>())
+      .def("update", &MultisetMedian::update)
+      .def("get_median", &MultisetMedian::get_median)
+      .def("process_batch",
+           [](MultisetMedian &self,
+              py::array_t<double, py::array::c_style | py::array::forcecast>
+                  input) {
+             return process_batch_generic(
+                 self, input, [](MultisetMedian &m) { return m.get_median(); });
            });
 }
