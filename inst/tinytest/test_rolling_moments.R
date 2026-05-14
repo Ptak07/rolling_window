@@ -75,7 +75,7 @@ for (k in c(2L, 3L, 5L)) {
 expect_equal(robustrolling::rolling_mean(numeric(0), 3L), numeric(0))
 
 # Input validation
-expect_error(robustrolling::rolling_mean(1:5, 3L))
+expect_true(is.double(robustrolling::rolling_mean(1:5, 3L)))
 expect_error(robustrolling::rolling_mean(as.double(1:5), 0L))
 
 # ---- rolling_skewness ----
@@ -110,7 +110,7 @@ expect_equal(res_na[5], skew_adj(c(2, 3, 5)),   tolerance = 1e-10)
 expect_equal(robustrolling::rolling_skewness(numeric(0), 3L), numeric(0))
 
 # Input validation
-expect_error(robustrolling::rolling_skewness(1:5, 3L))
+expect_true(is.double(robustrolling::rolling_skewness(1:5, 3L)))
 expect_error(robustrolling::rolling_skewness(as.double(1:5), 0L))
 
 # ---- rolling_kurtosis ----
@@ -146,5 +146,5 @@ expect_equal(res_na[6], kurt_excess(c(2, 3, 4, 6)), tolerance = 1e-10)
 expect_equal(robustrolling::rolling_kurtosis(numeric(0), 4L), numeric(0))
 
 # Input validation
-expect_error(robustrolling::rolling_kurtosis(1:5, 4L))
+expect_true(is.double(robustrolling::rolling_kurtosis(1:5, 4L)))
 expect_error(robustrolling::rolling_kurtosis(as.double(1:5), 0L))

@@ -73,7 +73,7 @@ expect_true(is.na(res_na[3]))
 expect_equal(robustrolling::rolling_min(numeric(0), 3L), numeric(0))
 
 # Input validation
-expect_error(robustrolling::rolling_min(1:5, 3L))
+expect_true(is.double(robustrolling::rolling_min(1:5, 3L)))
 expect_error(robustrolling::rolling_min(as.double(1:5), 0L))
 expect_error(robustrolling::rolling_min(as.double(1:5), -3L))
 expect_error(robustrolling::rolling_min(as.double(1:5), NA_integer_))

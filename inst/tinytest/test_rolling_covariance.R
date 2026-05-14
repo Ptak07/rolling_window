@@ -87,8 +87,8 @@ expect_equal(robustrolling::rolling_cov(numeric(0), numeric(0), 3L), numeric(0))
 expect_equal(robustrolling::rolling_cor(numeric(0), numeric(0), 3L), numeric(0))
 
 # ---- input validation ----
-expect_error(robustrolling::rolling_cov(1:5, as.double(1:5), 3L))       # x not double
-expect_error(robustrolling::rolling_cov(as.double(1:5), 1:5, 3L))       # y not double
+expect_true(is.double(robustrolling::rolling_cov(1:5, as.double(1:5), 3L)))
+expect_true(is.double(robustrolling::rolling_cov(as.double(1:5), 1:5, 3L)))
 expect_error(robustrolling::rolling_cov(as.double(1:5), as.double(1:4), 3L))  # length mismatch
 expect_error(robustrolling::rolling_cov(as.double(1:5), as.double(1:5), 0L))  # bad window
 expect_error(robustrolling::rolling_cov(as.double(1:5), as.double(1:5), 3L, min_periods = -1L))

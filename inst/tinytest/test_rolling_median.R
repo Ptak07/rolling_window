@@ -111,7 +111,7 @@ expect_equal(
 expect_equal(robustrolling::rolling_median(numeric(0), 3L), numeric(0))
 
 # Input validation
-expect_error(robustrolling::rolling_median(1:5, 3L))
+expect_true(is.double(robustrolling::rolling_median(1:5, 3L)))
 expect_error(robustrolling::rolling_median(as.double(1:5), 0L))
 expect_error(robustrolling::rolling_median(as.double(1:5), -1L))
 

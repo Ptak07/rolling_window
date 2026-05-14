@@ -46,7 +46,7 @@
 #' x <- as.double(c(1, 2, 3, 4))
 #' rolling_variance(x, 3L)
 rolling_variance <- function(x, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
   result <- .Call("rolling_variance_c", x, as.integer(window_size),
@@ -73,7 +73,7 @@ rolling_variance <- function(x, window_size, min_periods = window_size) {
 #' x <- as.double(c(1, 3, 2, 5, 4))
 #' rolling_max(x, 3L)
 rolling_max <- function(x, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
   result <- .Call("rolling_max_c", x, as.integer(window_size),
@@ -100,7 +100,7 @@ rolling_max <- function(x, window_size, min_periods = window_size) {
 #' x <- as.double(c(1, 3, 2, 5, 4))
 #' rolling_min(x, 3L)
 rolling_min <- function(x, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
   result <- .Call("rolling_min_c", x, as.integer(window_size),
@@ -128,7 +128,7 @@ rolling_min <- function(x, window_size, min_periods = window_size) {
 #' x <- as.double(c(1, 3, 2, 5, 4))
 #' rolling_median(x, 3L)
 rolling_median <- function(x, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
   result <- .Call("rolling_median_c", x, as.integer(window_size),
@@ -154,7 +154,7 @@ rolling_median <- function(x, window_size, min_periods = window_size) {
 #' x <- as.double(c(1, 2, 3, 4))
 #' rolling_mean(x, 3L)
 rolling_mean <- function(x, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
   result <- .Call("rolling_mean_c", x, as.integer(window_size),
@@ -181,7 +181,7 @@ rolling_mean <- function(x, window_size, min_periods = window_size) {
 #' x <- as.double(c(1, 2, 3, 4, 5))
 #' rolling_skewness(x, 3L)
 rolling_skewness <- function(x, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
   result <- .Call("rolling_skewness_c", x, as.integer(window_size),
@@ -208,7 +208,7 @@ rolling_skewness <- function(x, window_size, min_periods = window_size) {
 #' x <- as.double(c(1, 2, 3, 4, 5))
 #' rolling_kurtosis(x, 4L)
 rolling_kurtosis <- function(x, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
   result <- .Call("rolling_kurtosis_c", x, as.integer(window_size),
@@ -236,8 +236,8 @@ rolling_kurtosis <- function(x, window_size, min_periods = window_size) {
 #' y <- as.double(c(2, 4, 6, 8, 10))
 #' rolling_cov(x, y, 3L)
 rolling_cov <- function(x, y, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
-  if (!is.double(y)) stop("y must be a double vector.", call. = FALSE)
+  x <- as.double(x)
+  y <- as.double(y)
   if (length(x) != length(y)) stop("x and y must have the same length.", call. = FALSE)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
@@ -266,8 +266,8 @@ rolling_cov <- function(x, y, window_size, min_periods = window_size) {
 #' y <- as.double(c(2, 4, 6, 8, 10))
 #' rolling_cor(x, y, 3L)
 rolling_cor <- function(x, y, window_size, min_periods = window_size) {
-  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
-  if (!is.double(y)) stop("y must be a double vector.", call. = FALSE)
+  x <- as.double(x)
+  y <- as.double(y)
   if (length(x) != length(y)) stop("x and y must have the same length.", call. = FALSE)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)

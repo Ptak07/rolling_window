@@ -65,7 +65,7 @@ expect_true(is.na(res_na[3]))
 expect_equal(robustrolling::rolling_max(numeric(0), 3L), numeric(0))
 
 # Input validation
-expect_error(robustrolling::rolling_max(1:5, 3L))
+expect_true(is.double(robustrolling::rolling_max(1:5, 3L)))
 expect_error(robustrolling::rolling_max(as.double(1:5), 0L))
 expect_error(robustrolling::rolling_max(as.double(1:5), -3L))
 expect_error(robustrolling::rolling_max(as.double(1:5), NA_integer_))
