@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -296,6 +298,114 @@ class TestMultisetMedian:
         out = rrc.MultisetMedian(2).process_batch(np.array([1, 2, 3], dtype=np.int32))
         assert out.dtype == np.float64
 
+# ── C++ engine — SlidingMoments ──────────────────────────────────────────────────
+
+class TestSlidingMoments:
+
+    def test_initial_state_is_nan(self):
+        sm = rrc.SlidingMoments(4)
+        assert sm.current_size() == 0
+        assert math.isnan(sm.get_skewness())
+        assert math.isnan(sm.get_kurtosis())
+
+    def test_symmetric_window_skewness_is_zero(self):
+        # [1, 2, 3] is symmetric → skewness = 0
+        sm = rrc.SlidingMoments(3)
+        for v in [1.0, 2.0, 3.0]:
+            sm.update(v)
+        assert pytest.approx(sm.get_skewness(), abs=1e-12) == 0.0
+        assert math.isnan(sm.get_kurtosis())  # n=3 < 4
+
+    def test_known_kurtosis_uniform_window(self):
+        # [1, 2, 3, 4]: excess kurtosis = -1.2 (uniform distribution)
+        sm = rrc.SlidingMoments(4)
+        for v in [1.0, 2.0, 3.0, 4.0]:
+            sm.update(v)
+        assert pytest.approx(sm.get_kurtosis(), abs=1e-10) == -1.2
+
+    def test_nan_advances_window_and_reduces_size(self):
+        sm = rrc.SlidingMoments(4)
+        for v in [1.0, 2.0, 3.0, 4.0]:
+            sm.update(v)
+        assert sm.current_size() == 4
+        assert not math.isnan(sm.get_kurtosis())
+
+        sm.update(float('nan'))
+        assert sm.current_size() == 3
+        assert not math.isnan(sm.get_skewness())
+        assert math.isnan(sm.get_kurtosis())  # n=3 < 4
+
+    def test_nan_does_not_corrupt_state(self):
+        sm = rrc.SlidingMoments(3)
+        for v in [10.0, 20.0, 30.0]:
+            sm.update(v)
+        skew_before = sm.get_skewness()
+
+        for _ in range(3):
+            sm.update(float('nan'))
+        assert sm.current_size() == 0
+
+        for v in [10.0, 20.0, 30.0]:
+            sm.update(v)
+        assert pytest.approx(sm.get_skewness(), abs=1e-10) == skew_before
+
+    def test_nan_behavior_matches_pandas(self):
+        data = [1.0, 2.0, 5.0, 7.0, np.nan, np.nan, 8.0, 1.0, 3.0]
+        window_size = 4
+
+        s = pd.Series(data)
+        expected_skew = s.rolling(window_size).skew()
+        expected_kurt = s.rolling(window_size).kurt()
+        expected_count = s.rolling(window_size).count()
+
+        sm = rrc.SlidingMoments(window_size)
+
+        for i, val in enumerate(data):
+            sm.update(val)
+            assert sm.current_size() == expected_count[i], f"count mismatch at {i}"
+
+            cpp_skew, pd_skew = sm.get_skewness(), expected_skew[i]
+            if pd.isna(pd_skew):
+                assert math.isnan(cpp_skew), f"skew should be NaN at {i}"
+            else:
+                assert pytest.approx(cpp_skew, abs=1e-5) == pd_skew, f"skew mismatch at {i}"
+
+            cpp_kurt, pd_kurt = sm.get_kurtosis(), expected_kurt[i]
+            if pd.isna(pd_kurt):
+                assert math.isnan(cpp_kurt), f"kurtosis should be NaN at {i}"
+            else:
+                assert pytest.approx(cpp_kurt, abs=1e-5) == pd_kurt, f"kurtosis mismatch at {i}"
+
+    def test_randomized_fuzzing_against_pandas(self):
+        np.random.seed(42)
+        window_size = int(np.random.randint(4, 20))
+        data = np.random.randn(1000) * 50.0
+        data[np.random.rand(1000) < 0.15] = np.nan
+
+        s = pd.Series(data)
+        expected_skew = s.rolling(window=window_size).skew()
+        expected_kurt = s.rolling(window=window_size).kurt()
+        expected_count = s.rolling(window=window_size).count()
+
+        sm = rrc.SlidingMoments(window_size)
+
+        for i, val in enumerate(data):
+            sm.update(val)
+            assert sm.current_size() == expected_count[i], f"count mismatch at {i}"
+
+            cpp_skew, pd_skew = sm.get_skewness(), expected_skew[i]
+            if pd.isna(pd_skew):
+                assert math.isnan(cpp_skew), f"skewness should be NaN at {i}"
+            else:
+                assert pytest.approx(cpp_skew, rel=1e-4, abs=1e-6) == pd_skew, \
+                    f"skewness mismatch at {i}: expected {pd_skew}, got {cpp_skew}"
+
+            cpp_kurt, pd_kurt = sm.get_kurtosis(), expected_kurt[i]
+            if pd.isna(pd_kurt):
+                assert math.isnan(cpp_kurt), f"kurtosis should be NaN at {i}"
+            else:
+                assert pytest.approx(cpp_kurt, rel=1e-4, abs=1e-6) == pd_kurt, \
+                    f"kurtosis mismatch at {i}: expected {pd_kurt}, got {cpp_kurt}"
 
 # ── High-level API — output type preservation ─────────────────────────────────
 

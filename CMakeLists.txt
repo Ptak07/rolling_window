@@ -13,6 +13,7 @@ add_library(rolling_core
     src_core/MonotonicMin.cpp
     src_core/SlidingWelford.cpp
     src_core/SlidingWelfordRing.cpp
+    src_core/SlidingMoments.cpp
 )
 target_include_directories(rolling_core PUBLIC include)
 
@@ -71,6 +72,7 @@ add_executable(test_core
     tests/test_monotonic_min.cxx
     tests/test_sliding_welford.cxx
     tests/test_sliding_welford_ring.cxx
+    tests/test_sliding_moments.cxx
 )
 target_link_libraries(test_core PRIVATE rolling_core gtest gtest_main) 
 
