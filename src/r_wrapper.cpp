@@ -1,6 +1,7 @@
 #include "MonotonicMax.hpp"
 #include "MonotonicMin.hpp"
 #include "MultisetMedian.hpp"
+#include "SlidingCovariance.hpp"
 #include "SlidingMoments.hpp"
 #include "SlidingWelfordRing.hpp"
 
@@ -174,6 +175,58 @@ SEXP rolling_kurtosis_c(SEXP r_data, SEXP r_window_size) {
   return r_result;
 }
 
+SEXP rolling_cov_c(SEXP r_x, SEXP r_y, SEXP r_window_size) {
+  if (!Rf_isReal(r_x) || !Rf_isReal(r_y))
+    Rf_error("Input data must be numeric vectors.");
+  R_xlen_t n = XLENGTH(r_x);
+  if (XLENGTH(r_y) != n)
+    Rf_error("x and y must have the same length.");
+
+  double *x_ptr = REAL(r_x);
+  double *y_ptr = REAL(r_y);
+  std::size_t k = read_window_size(r_window_size);
+
+  SlidingCovariance sc(k);
+
+  SEXP r_result;
+  PROTECT(r_result = Rf_allocVector(REALSXP, n));
+  double *output_ptr = REAL(r_result);
+
+  for (R_xlen_t i = 0; i < n; ++i) {
+    sc.update(x_ptr[i], y_ptr[i]);
+    output_ptr[i] = sc.get_covariance();
+  }
+
+  UNPROTECT(1);
+  return r_result;
+}
+
+SEXP rolling_cor_c(SEXP r_x, SEXP r_y, SEXP r_window_size) {
+  if (!Rf_isReal(r_x) || !Rf_isReal(r_y))
+    Rf_error("Input data must be numeric vectors.");
+  R_xlen_t n = XLENGTH(r_x);
+  if (XLENGTH(r_y) != n)
+    Rf_error("x and y must have the same length.");
+
+  double *x_ptr = REAL(r_x);
+  double *y_ptr = REAL(r_y);
+  std::size_t k = read_window_size(r_window_size);
+
+  SlidingCovariance sc(k);
+
+  SEXP r_result;
+  PROTECT(r_result = Rf_allocVector(REALSXP, n));
+  double *output_ptr = REAL(r_result);
+
+  for (R_xlen_t i = 0; i < n; ++i) {
+    sc.update(x_ptr[i], y_ptr[i]);
+    output_ptr[i] = sc.get_correlation();
+  }
+
+  UNPROTECT(1);
+  return r_result;
+}
+
 static const R_CallMethodDef CallEntries[] = {
     {"rolling_variance_c", reinterpret_cast<DL_FUNC>(&rolling_variance_c), 2},
     {"rolling_max_c", reinterpret_cast<DL_FUNC>(&rolling_max_c), 2},
@@ -182,6 +235,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"rolling_mean_c", reinterpret_cast<DL_FUNC>(&rolling_mean_c), 2},
     {"rolling_skewness_c", reinterpret_cast<DL_FUNC>(&rolling_skewness_c), 2},
     {"rolling_kurtosis_c", reinterpret_cast<DL_FUNC>(&rolling_kurtosis_c), 2},
+    {"rolling_cov_c", reinterpret_cast<DL_FUNC>(&rolling_cov_c), 3},
+    {"rolling_cor_c", reinterpret_cast<DL_FUNC>(&rolling_cor_c), 3},
     {nullptr, nullptr, 0}};
 
 } // namespace

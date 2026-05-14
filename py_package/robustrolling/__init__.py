@@ -6,6 +6,7 @@ from robust_rolling_core import (
     MonotonicMax,
     MonotonicMin,
     MultisetMedian,
+    SlidingCovariance,
     SlidingMoments,
     SlidingWelford,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "MonotonicMax",
     "MonotonicMin",
     "MultisetMedian",
+    "SlidingCovariance",
     "SlidingMoments",
     "SlidingWelford",
     "rolling_max",
@@ -29,6 +31,8 @@ __all__ = [
     "rolling_mean",
     "rolling_skewness",
     "rolling_kurtosis",
+    "rolling_cov",
+    "rolling_cor",
 ]
 
 
@@ -126,4 +130,43 @@ def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
     mp = _resolve_min_periods(min_periods, window_size)
     result = SlidingMoments(window_size).process_kurtosis_batch(arr)
     result = _apply_min_periods(result, arr, window_size, mp)
+    return _wrap(result, x)
+
+
+def _count_valid_pairs_in_window(x: np.ndarray, y: np.ndarray,
+                                  window_size: int) -> np.ndarray:
+    both_valid = (~np.isnan(x) & ~np.isnan(y)).astype(np.float64)
+    cum = np.cumsum(both_valid)
+    lagged = np.empty_like(cum)
+    lagged[:window_size] = 0.0
+    if len(x) > window_size:
+        lagged[window_size:] = cum[:-window_size]
+    return cum - lagged
+
+
+def _apply_min_periods_pair(result: np.ndarray, x: np.ndarray, y: np.ndarray,
+                             window_size: int, min_periods: int) -> np.ndarray:
+    if min_periods == 0 or len(x) == 0:
+        return result
+    valid_count = _count_valid_pairs_in_window(x, y, window_size)
+    result = result.copy()
+    result[valid_count < min_periods] = np.nan
+    return result
+
+
+def rolling_cov(x, y, window_size: int, min_periods: int | None = None):
+    ax = _to_float64(x)
+    ay = _to_float64(y)
+    mp = _resolve_min_periods(min_periods, window_size)
+    result = SlidingCovariance(window_size).process_covariance_batch(ax, ay)
+    result = _apply_min_periods_pair(result, ax, ay, window_size, mp)
+    return _wrap(result, x)
+
+
+def rolling_cor(x, y, window_size: int, min_periods: int | None = None):
+    ax = _to_float64(x)
+    ay = _to_float64(y)
+    mp = _resolve_min_periods(min_periods, window_size)
+    result = SlidingCovariance(window_size).process_correlation_batch(ax, ay)
+    result = _apply_min_periods_pair(result, ax, ay, window_size, mp)
     return _wrap(result, x)

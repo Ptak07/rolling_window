@@ -10,13 +10,13 @@ TEST(SlidingMomentsTest, HandlesInitialization) {
 }
 
 TEST(SlidingMomentsTest, SymmetricWindowSkewnessIsZero) {
-  // [1, 2, 3] is symmetric → adjusted Fisher-Pearson skewness = 0
+  // [1, 2, 3] is symmetric -> adjusted Fisher-Pearson skewness = 0
   SlidingMoments sm(3);
   sm.update(1.0);
   sm.update(2.0);
   sm.update(3.0);
   EXPECT_NEAR(sm.get_skewness(), 0.0, 1e-12);
-  EXPECT_TRUE(std::isnan(sm.get_kurtosis()));  // n=3 < 4
+  EXPECT_TRUE(std::isnan(sm.get_kurtosis())); // n=3 < 4
 }
 
 TEST(SlidingMomentsTest, KnownKurtosisUniformWindow) {
@@ -38,14 +38,14 @@ TEST(SlidingMomentsTest, NanAdvancesWindowAndReducesSize) {
   EXPECT_EQ(sm.current_size(), 4);
   EXPECT_FALSE(std::isnan(sm.get_kurtosis()));
 
-  sm.update(NAN);  // window: [2, 3, 4, NaN] → 3 non-NaN
+  sm.update(NAN); // window: [2, 3, 4, NaN] -> 3 non-NaN
   EXPECT_EQ(sm.current_size(), 3);
   EXPECT_FALSE(std::isnan(sm.get_skewness()));
-  EXPECT_TRUE(std::isnan(sm.get_kurtosis()));  // n=3 < 4
+  EXPECT_TRUE(std::isnan(sm.get_kurtosis())); // n=3 < 4
 
-  sm.update(NAN);  // window: [3, 4, NaN, NaN] → 2 non-NaN
+  sm.update(NAN); // window: [3, 4, NaN, NaN] -> 2 non-NaN
   EXPECT_EQ(sm.current_size(), 2);
-  EXPECT_TRUE(std::isnan(sm.get_skewness()));  // n=2 < 3
+  EXPECT_TRUE(std::isnan(sm.get_skewness())); // n=2 < 3
 }
 
 TEST(SlidingMomentsTest, NanDoesNotCorruptMathematicalState) {

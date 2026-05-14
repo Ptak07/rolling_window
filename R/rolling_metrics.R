@@ -215,3 +215,63 @@ rolling_kurtosis <- function(x, window_size, min_periods = window_size) {
                   PACKAGE = "robustrolling")
   .apply_min_periods(result, x, window_size, mp)
 }
+
+#' @title Rolling Covariance
+#'
+#' @description
+#' Computes the rolling sample covariance (ddof=1) between two numeric vectors.
+#'
+#' @param x A numeric vector of type double.
+#' @param y A numeric vector of type double, same length as \code{x}.
+#' @param window_size Positive integer window length.
+#' @param min_periods Minimum number of valid (non-\code{NA}) pairs required.
+#'   Defaults to \code{window_size}.
+#'
+#' @return A numeric vector with rolling covariance values.
+#'
+#' @export
+#'
+#' @examples
+#' x <- as.double(c(1, 2, 3, 4, 5))
+#' y <- as.double(c(2, 4, 6, 8, 10))
+#' rolling_cov(x, y, 3L)
+rolling_cov <- function(x, y, window_size, min_periods = window_size) {
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  if (!is.double(y)) stop("y must be a double vector.", call. = FALSE)
+  if (length(x) != length(y)) stop("x and y must have the same length.", call. = FALSE)
+  .check_window(window_size)
+  mp <- .check_min_periods(min_periods, window_size)
+  result <- .Call("rolling_cov_c", x, y, as.integer(window_size),
+                  PACKAGE = "robustrolling")
+  .apply_min_periods(result, x, window_size, mp)
+}
+
+#' @title Rolling Correlation
+#'
+#' @description
+#' Computes the rolling Pearson correlation between two numeric vectors.
+#'
+#' @param x A numeric vector of type double.
+#' @param y A numeric vector of type double, same length as \code{x}.
+#' @param window_size Positive integer window length.
+#' @param min_periods Minimum number of valid (non-\code{NA}) pairs required.
+#'   Defaults to \code{window_size}.
+#'
+#' @return A numeric vector with rolling correlation values.
+#'
+#' @export
+#'
+#' @examples
+#' x <- as.double(c(1, 2, 3, 4, 5))
+#' y <- as.double(c(2, 4, 6, 8, 10))
+#' rolling_cor(x, y, 3L)
+rolling_cor <- function(x, y, window_size, min_periods = window_size) {
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  if (!is.double(y)) stop("y must be a double vector.", call. = FALSE)
+  if (length(x) != length(y)) stop("x and y must have the same length.", call. = FALSE)
+  .check_window(window_size)
+  mp <- .check_min_periods(min_periods, window_size)
+  result <- .Call("rolling_cor_c", x, y, as.integer(window_size),
+                  PACKAGE = "robustrolling")
+  .apply_min_periods(result, x, window_size, mp)
+}

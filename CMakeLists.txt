@@ -7,13 +7,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -O3")
 
-add_library(rolling_core 
+add_library(rolling_core
     src_core/MultisetMedian.cpp
     src_core/MonotonicMax.cpp
     src_core/MonotonicMin.cpp
     src_core/SlidingWelford.cpp
     src_core/SlidingWelfordRing.cpp
     src_core/SlidingMoments.cpp
+    src_core/SlidingCovariance.cpp
 )
 target_include_directories(rolling_core PUBLIC include)
 
@@ -73,6 +74,7 @@ add_executable(test_core
     tests/test_sliding_welford.cxx
     tests/test_sliding_welford_ring.cxx
     tests/test_sliding_moments.cxx
+    tests/test_sliding_covariance.cxx
 )
 target_link_libraries(test_core PRIVATE rolling_core gtest gtest_main) 
 

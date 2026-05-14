@@ -12,6 +12,7 @@ target_sources(robust_rolling_core PRIVATE
   ../src_core/MonotonicMax.cpp
   ../src_core/MonotonicMin.cpp
   ../src_core/MultisetMedian.cpp
+  ../src_core/SlidingCovariance.cpp
   ../src_core/SlidingMoments.cpp
   ../src_core/SlidingWelfordRing.cpp
 )
