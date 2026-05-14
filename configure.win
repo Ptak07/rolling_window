@@ -1,11 +1,8 @@
-@echo off
+#!/bin/bash
+set -e
 
-if not exist inst\include mkdir inst\include
-del /q inst\include\*.hpp >nul 2>nul
-copy /y include\*.hpp inst\include\ >nul
+mkdir -p inst/include
+cp include/*.hpp inst/include/
 
-if not exist src mkdir src
-del /q src\MonotonicMax.cpp src\MultisetMedian.cpp src\SlidingWelford.cpp src\SlidingWelfordRing.cpp >nul 2>nul
-copy /y src_core\*.cpp src\ >nul
-
-exit /b 0
+mkdir -p src
+cp src_core/*.cpp src/
