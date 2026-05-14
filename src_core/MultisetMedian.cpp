@@ -55,7 +55,7 @@ void MultisetMedian::skip_impl() {
 }
 
 void MultisetMedian::update_impl(double new_value) {
-  if (history_.size() == window_size_) {
+  if (history_.size() >= window_size_) {
     double oldest_val = history_.front();
     history_.pop();
     history_.push(new_value);
