@@ -1,4 +1,5 @@
 #include "SlidingWelford.hpp"
+#include <stdexcept>
 
 SlidingWelford::SlidingWelford(std::size_t window_size)
     : window_size_(window_size), mean_(0.0), M2_(0.0) {
