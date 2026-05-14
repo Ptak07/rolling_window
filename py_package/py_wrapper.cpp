@@ -101,6 +101,25 @@ PYBIND11_MODULE(robust_rolling_core, m) {
       .def("get_mean", &SlidingMoments::get_mean)
       .def("get_skewness", &SlidingMoments::get_skewness)
       .def("get_kurtosis", &SlidingMoments::get_kurtosis)
+      .def("process_mean_batch",
+           [](SlidingMoments &self,
+              py::array_t<double, py::array::c_style | py::array::forcecast>
+                  input) {
+             py::buffer_info info = input.request();
+             if (info.ndim != 1)
+               throw std::runtime_error("Input must be 1D array");
+             auto result = py::array_t<double>(
+                 py::array::ShapeContainer{info.shape[0]},
+                 py::array::StridesContainer{
+                     static_cast<py::ssize_t>(sizeof(double))});
+             const auto *in = static_cast<const double *>(info.ptr);
+             auto *out = static_cast<double *>(result.request().ptr);
+             for (py::ssize_t i = 0; i < info.shape[0]; ++i) {
+               self.update(in[i]);
+               out[i] = self.get_mean();
+             }
+             return result;
+           })
       .def("process_skewness_batch",
            [](SlidingMoments &self,
               py::array_t<double, py::array::c_style | py::array::forcecast>

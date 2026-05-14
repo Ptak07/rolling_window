@@ -1,4 +1,5 @@
 #include "SlidingMoments.hpp"
+#include <stdexcept>
 
 SlidingMoments::SlidingMoments(std::size_t window_size)
     : window_size_(window_size) {

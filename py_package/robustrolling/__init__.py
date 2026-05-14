@@ -6,6 +6,7 @@ from robust_rolling_core import (
     MonotonicMax,
     MonotonicMin,
     MultisetMedian,
+    SlidingMoments,
     SlidingWelford,
 )
 
@@ -19,11 +20,15 @@ __all__ = [
     "MonotonicMax",
     "MonotonicMin",
     "MultisetMedian",
+    "SlidingMoments",
     "SlidingWelford",
     "rolling_max",
     "rolling_min",
     "rolling_variance",
     "rolling_median",
+    "rolling_mean",
+    "rolling_skewness",
+    "rolling_kurtosis",
 ]
 
 
@@ -96,5 +101,29 @@ def rolling_median(x, window_size: int, min_periods: int | None = None):
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
     result = MultisetMedian(window_size).process_batch(arr)
+    result = _apply_min_periods(result, arr, window_size, mp)
+    return _wrap(result, x)
+
+
+def rolling_mean(x, window_size: int, min_periods: int | None = None):
+    arr = _to_float64(x)
+    mp = _resolve_min_periods(min_periods, window_size)
+    result = SlidingMoments(window_size).process_mean_batch(arr)
+    result = _apply_min_periods(result, arr, window_size, mp)
+    return _wrap(result, x)
+
+
+def rolling_skewness(x, window_size: int, min_periods: int | None = None):
+    arr = _to_float64(x)
+    mp = _resolve_min_periods(min_periods, window_size)
+    result = SlidingMoments(window_size).process_skewness_batch(arr)
+    result = _apply_min_periods(result, arr, window_size, mp)
+    return _wrap(result, x)
+
+
+def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
+    arr = _to_float64(x)
+    mp = _resolve_min_periods(min_periods, window_size)
+    result = SlidingMoments(window_size).process_kurtosis_batch(arr)
     result = _apply_min_periods(result, arr, window_size, mp)
     return _wrap(result, x)
