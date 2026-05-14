@@ -9,6 +9,7 @@ on:
       - inst/**
       - DESCRIPTION
       - NAMESPACE
+      - Makefile
       - .github/workflows/r_check.yml
   pull_request:
     paths:
@@ -28,7 +29,7 @@ jobs:
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          r-version: 'release'
+          r-version: "release"
 
       - name: Sync headers
         run: make r-sync-headers
@@ -53,7 +54,7 @@ jobs:
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          r-version: 'release'
+          r-version: "release"
 
       - name: Sync headers
         run: make r-sync-headers
