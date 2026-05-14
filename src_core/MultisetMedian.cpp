@@ -1,6 +1,7 @@
 #include "MultisetMedian.hpp"
 #include <iterator>
 #include <limits>
+#include <stdexcept>
 
 MultisetMedian::MultisetMedian(std::size_t size) : window_size_(size) {
   if (size <= 0) {
