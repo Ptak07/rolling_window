@@ -309,7 +309,7 @@ class TestSlidingMoments:
         assert math.isnan(sm.get_kurtosis())
 
     def test_symmetric_window_skewness_is_zero(self):
-        # [1, 2, 3] is symmetric → skewness = 0
+        # [1, 2, 3] is symmetric -> skewness = 0
         sm = rrc.SlidingMoments(3)
         for v in [1.0, 2.0, 3.0]:
             sm.update(v)
@@ -448,7 +448,7 @@ class TestOutputType:
 
 # ── High-level API — pandas value comparison ──────────────────────────────────
 #
-# Each case is (data, k, min_periods).  None → default (= window_size).
+# Each case is (data, k, min_periods).  None -> default (= window_size).
 # Tested against the equivalent pandas rolling call.
 
 _PANDAS_CASES = [
@@ -474,7 +474,7 @@ _CASE_PARAMS = [(c[1], c[2], c[3]) for c in _PANDAS_CASES]  # (data, k, mp)
 
 
 def _pd_mp(mp, k):
-    """Resolve None → k for pandas min_periods argument."""
+    """Resolve None -> k for pandas min_periods argument."""
     return k if mp is None else mp
 
 
@@ -534,7 +534,7 @@ class TestMinPeriods:
             assert not np.any(np.isnan(fn(x, 3, min_periods=0)))
 
     def test_nan_series_default_all_masked(self):
-        """[1,nan,3,4] window=3: non_na_count=[1,1,2,2], all < 3 → all NaN."""
+        """[1,nan,3,4] window=3: non_na_count=[1,1,2,2], all < 3 -> all NaN."""
         x = np.array([1.0, np.nan, 3.0, 4.0])
         for fn in (rr.rolling_max, rr.rolling_min, rr.rolling_median):
             assert np.all(np.isnan(fn(x, 3)))
@@ -618,7 +618,7 @@ class TestMemoryLayoutAndDtypes:
     @pytest.mark.parametrize("dtype", [np.float32, np.int32, np.int64],
                              ids=["float32", "int32", "int64"])
     def test_numeric_dtype_cast_in_engine(self, dtype):
-        """C++ engine accepts numeric dtypes via forcecast → output is always float64."""
+        """C++ engine accepts numeric dtypes via forcecast -> output is always float64."""
         x = np.array([1, 3, 2, 5, 4], dtype=dtype)
         out = rrc.MonotonicMax(3).process_batch(x)
         assert out.dtype == np.float64
@@ -689,3 +689,210 @@ class TestFuzz:
         x = np.random.randn(100).astype(np.float64)
         for _ in range(2000):
             rrc.MultisetMedian(10).process_batch(x)
+
+
+# ── C++ engine — SlidingCovariance ────────────────────────────────────────────
+
+def _cov_ref(x, y, k):
+    """Sample covariance (ddof=1) over valid pairs in each rolling window."""
+    out = np.full(len(x), np.nan)
+    for i in range(len(x)):
+        xi = x[max(0, i - k + 1):i + 1]
+        yi = y[max(0, i - k + 1):i + 1]
+        mask = ~np.isnan(xi) & ~np.isnan(yi)
+        xi, yi = xi[mask], yi[mask]
+        if len(xi) >= 2:
+            out[i] = np.cov(xi, yi, ddof=1)[0, 1]
+    return out
+
+
+def _cor_ref(x, y, k):
+    """Pearson correlation over valid pairs in each rolling window."""
+    out = np.full(len(x), np.nan)
+    for i in range(len(x)):
+        xi = x[max(0, i - k + 1):i + 1]
+        yi = y[max(0, i - k + 1):i + 1]
+        mask = ~np.isnan(xi) & ~np.isnan(yi)
+        xi, yi = xi[mask], yi[mask]
+        if len(xi) >= 2 and np.std(xi) > 0 and np.std(yi) > 0:
+            out[i] = np.corrcoef(xi, yi)[0, 1]
+    return out
+
+
+class TestSlidingCovariance:
+
+    def test_initial_state_is_nan(self):
+        sc = rrc.SlidingCovariance(3)
+        assert math.isnan(sc.get_covariance())
+        assert math.isnan(sc.get_correlation())
+        assert math.isnan(sc.get_mean_x())
+        assert math.isnan(sc.get_mean_y())
+
+    def test_perfect_positive_correlation(self):
+        sc = rrc.SlidingCovariance(3)
+        for xi, yi in [(1.0, 2.0), (2.0, 4.0), (3.0, 6.0)]:
+            sc.update(xi, yi)
+        assert pytest.approx(sc.get_correlation(), abs=1e-12) == 1.0
+        assert pytest.approx(sc.get_covariance(), abs=1e-12) == 2.0  # cov([1,2,3],[2,4,6])
+
+    def test_perfect_negative_correlation(self):
+        sc = rrc.SlidingCovariance(3)
+        for xi, yi in [(1.0, 3.0), (2.0, 2.0), (3.0, 1.0)]:
+            sc.update(xi, yi)
+        assert pytest.approx(sc.get_correlation(), abs=1e-12) == -1.0
+
+    def test_uncorrelated_constant_x(self):
+        sc = rrc.SlidingCovariance(4)
+        for xi, yi in [(5.0, 1.0), (5.0, 2.0), (5.0, 3.0), (5.0, 4.0)]:
+            sc.update(xi, yi)
+        # M2_x == 0 -> correlation is NaN
+        assert math.isnan(sc.get_correlation())
+        # covariance should be ~0
+        assert pytest.approx(sc.get_covariance(), abs=1e-12) == 0.0
+
+    def test_window_expiry_removes_old_pairs(self):
+        sc = rrc.SlidingCovariance(2)
+        sc.update(1.0, 1.0)
+        sc.update(2.0, 2.0)
+        sc.update(10.0, 10.0)  # window: [(2,2),(10,10)]
+        assert pytest.approx(sc.get_mean_x(), abs=1e-12) == 6.0
+        assert pytest.approx(sc.get_correlation(), abs=1e-12) == 1.0
+
+    def test_nan_pair_skipped_not_added(self):
+        # Window=3: add (1,2),(2,4),(3,6) then NaN pair.
+        # NaN removes oldest (1,2) but adds nothing -> valid: [(2,4),(3,6)]
+        sc = rrc.SlidingCovariance(3)
+        for xi, yi in [(1.0, 2.0), (2.0, 4.0), (3.0, 6.0)]:
+            sc.update(xi, yi)
+        sc.update(math.nan, 5.0)
+        assert pytest.approx(sc.get_covariance(), abs=1e-12) == 1.0  # cov([2,3],[4,6])
+        assert pytest.approx(sc.get_correlation(), abs=1e-12) == 1.0
+
+    def test_single_pair_covariance_is_nan(self):
+        sc = rrc.SlidingCovariance(3)
+        sc.update(1.0, 2.0)
+        assert math.isnan(sc.get_covariance())  # needs >=2 pairs
+
+    @pytest.mark.parametrize("k", [2, 3, 5])
+    def test_covariance_against_numpy_reference(self, k):
+        x = np.array([-3.0, -1.0, 0.0, 2.0, 10.0, 7.0, 7.0, 8.0])
+        y = np.array([1.0, 3.0, -1.0, 4.0, 2.0, 6.0, 5.0, 0.0])
+        sc = rrc.SlidingCovariance(k)
+        out = sc.process_covariance_batch(x, y)
+        _nan_allclose(out, _cov_ref(x, y, k), rtol=1e-11, atol=1e-11)
+
+    @pytest.mark.parametrize("k", [2, 3, 5])
+    def test_correlation_against_numpy_reference(self, k):
+        x = np.array([-3.0, -1.0, 0.0, 2.0, 10.0, 7.0, 7.0, 8.0])
+        y = np.array([1.0, 3.0, -1.0, 4.0, 2.0, 6.0, 5.0, 0.0])
+        sc = rrc.SlidingCovariance(k)
+        out = sc.process_correlation_batch(x, y)
+        _nan_allclose(out, _cor_ref(x, y, k), rtol=1e-11, atol=1e-11)
+
+    def test_random_nan_fuzzing_against_reference(self):
+        np.random.seed(123)
+        x = np.random.randn(500)
+        y = np.random.randn(500)
+        x[np.random.rand(500) < 0.15] = np.nan
+        y[np.random.rand(500) < 0.15] = np.nan
+        k = 10
+        sc = rrc.SlidingCovariance(k)
+        cov_out = sc.process_covariance_batch(x, y)
+        sc2 = rrc.SlidingCovariance(k)
+        cor_out = sc2.process_correlation_batch(x, y)
+        _nan_allclose(cov_out, _cov_ref(x, y, k), rtol=1e-9, atol=1e-9)
+        _nan_allclose(cor_out, _cor_ref(x, y, k), rtol=1e-9, atol=1e-9)
+
+    def test_process_batch_rejects_length_mismatch(self):
+        sc = rrc.SlidingCovariance(3)
+        with pytest.raises(RuntimeError, match="same length"):
+            sc.process_covariance_batch(np.array([1.0, 2.0]), np.array([1.0]))
+
+    def test_process_batch_rejects_2d_input(self):
+        sc = rrc.SlidingCovariance(3)
+        with pytest.raises(RuntimeError):
+            sc.process_covariance_batch(np.ones((2, 3)), np.ones(3))
+
+    def test_empty_input(self):
+        sc = rrc.SlidingCovariance(3)
+        out = sc.process_covariance_batch(np.array([]), np.array([]))
+        assert len(out) == 0 and out.dtype == np.float64
+
+
+# ── High-level API — rolling_cov / rolling_cor ────────────────────────────────
+
+class TestRollingCovCor:
+
+    def test_rolling_cov_known_values(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+        # cov(x*2, x) = 2 * var(x) = 2 * 1.0 = 2.0
+        out = rr.rolling_cov(x, y, 3)
+        expected = np.array([np.nan, np.nan, 2.0, 2.0, 2.0])
+        _nan_allclose(out, expected)
+
+    def test_rolling_cov_default_min_periods_masks_warmup(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0])
+        y = np.array([4.0, 3.0, 2.0, 1.0])
+        out = rr.rolling_cov(x, y, 3)
+        assert np.isnan(out[0]) and np.isnan(out[1])
+        assert not np.isnan(out[2])
+
+    def test_rolling_cor_known_perfect_positive(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = x * 3.0
+        out = rr.rolling_cor(x, y, 3)
+        np.testing.assert_allclose(out[2:], 1.0, atol=1e-12)
+
+    def test_rolling_cor_known_perfect_negative(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = -x + 6.0
+        out = rr.rolling_cor(x, y, 3)
+        np.testing.assert_allclose(out[2:], -1.0, atol=1e-12)
+
+    def test_rolling_cov_matches_pandas(self):
+        np.random.seed(7)
+        x = np.random.randn(200)
+        y = np.random.randn(200)
+        k = 8
+        expected = pd.Series(x).rolling(k, min_periods=k).cov(pd.Series(y)).to_numpy()
+        _nan_allclose(rr.rolling_cov(x, y, k), expected, rtol=1e-10, atol=1e-10)
+
+    def test_rolling_cor_matches_pandas(self):
+        np.random.seed(7)
+        x = np.random.randn(200)
+        y = np.random.randn(200)
+        k = 8
+        expected = pd.Series(x).rolling(k, min_periods=k).corr(pd.Series(y)).to_numpy()
+        _nan_allclose(rr.rolling_cor(x, y, k), expected, rtol=1e-10, atol=1e-10)
+
+    def test_rolling_cov_with_nan_matches_pandas(self):
+        np.random.seed(42)
+        x = np.random.randn(300)
+        y = np.random.randn(300)
+        x[np.random.rand(300) < 0.15] = np.nan
+        y[np.random.rand(300) < 0.15] = np.nan
+        k, mp = 7, 3
+        expected = pd.Series(x).rolling(k, min_periods=mp).cov(pd.Series(y)).to_numpy()
+        _nan_allclose(rr.rolling_cov(x, y, k, min_periods=mp), expected, rtol=1e-9, atol=1e-9)
+
+    def test_rolling_cor_with_nan_matches_pandas(self):
+        np.random.seed(42)
+        x = np.random.randn(300)
+        y = np.random.randn(300)
+        x[np.random.rand(300) < 0.15] = np.nan
+        y[np.random.rand(300) < 0.15] = np.nan
+        k, mp = 7, 3
+        expected = pd.Series(x).rolling(k, min_periods=mp).corr(pd.Series(y)).to_numpy()
+        _nan_allclose(rr.rolling_cor(x, y, k, min_periods=mp), expected, rtol=1e-9, atol=1e-9)
+
+    def test_series_input_returns_series(self):
+        s = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0], name="a")
+        t = pd.Series([5.0, 4.0, 3.0, 2.0, 1.0], name="b")
+        out = rr.rolling_cov(s, t, 3)
+        assert isinstance(out, pd.Series)
+        assert out.name == "a"
+
+    def test_empty_input(self):
+        out = rr.rolling_cov(np.array([]), np.array([]), 3)
+        assert len(out) == 0

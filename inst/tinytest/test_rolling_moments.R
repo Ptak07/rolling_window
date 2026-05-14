@@ -80,15 +80,15 @@ expect_error(robustrolling::rolling_mean(as.double(1:5), 0L))
 
 # ---- rolling_skewness ----
 
-# Symmetric window → skewness = 0
+# Symmetric window -> skewness = 0
 x_sym <- as.double(c(1, 2, 3))
 res_sym <- robustrolling::rolling_skewness(x_sym, 3L)
 expect_equal(res_sym[3], 0.0, tolerance = 1e-12)
 
-# Needs at least 3 non-NA values; n=2 → NA
+# Needs at least 3 non-NA values; n=2 -> NA
 x2 <- as.double(c(1, 2, 3, 4))
 res2 <- robustrolling::rolling_skewness(x2, 2L)
-expect_true(all(is.na(res2)))   # window=2 always < 3 → NA or NaN, never a number
+expect_true(all(is.na(res2)))   # window=2 always < 3 -> NA or NaN, never a number
 
 # Cross-check against reference (min_periods = 1 reveals warm-up values)
 x_ref <- as.double(c(1, 3, -1, 5, 2, 8, 0))
@@ -121,10 +121,10 @@ res_known <- robustrolling::rolling_kurtosis(x_known, 4L)
 expect_true(all(is.na(res_known[1:3])))
 expect_equal(res_known[4], -1.2, tolerance = 1e-10)
 
-# Needs at least 4 non-NA values; n=3 → NA
+# Needs at least 4 non-NA values; n=3 -> NA
 x3 <- as.double(c(1, 2, 3, 4))
 res3 <- robustrolling::rolling_kurtosis(x3, 3L)
-expect_true(all(is.na(res3)))   # window=3 always < 4 → NA or NaN, never a number
+expect_true(all(is.na(res3)))   # window=3 always < 4 -> NA or NaN, never a number
 
 # Cross-check against reference
 x_ref <- as.double(c(1, 3, -1, 5, 2, 8, 0, 4))

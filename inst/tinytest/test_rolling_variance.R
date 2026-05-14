@@ -74,12 +74,12 @@ expect_equal(res_mp2[3], 1.0, tolerance = 1e-12)
 expect_equal(res_mp2[4], 1.0, tolerance = 1e-12)
 
 # NaN in series, default min_periods (= window_size = 3)
-# non_na_count for window=3: [1, 1, 2, 2] → all < 3 → all NA
+# non_na_count for window=3: [1, 1, 2, 2] -> all < 3 -> all NA
 x_na <- as.double(c(1, NA_real_, 3, 5))
 expect_true(all(is.na(robustrolling::rolling_variance(x_na, 3L))))
 
 # NaN in series, min_periods = 2
-# non_na_count: [1, 1, 2, 2] → positions 3,4 have 2 non-NA >= 2
+# non_na_count: [1, 1, 2, 2] -> positions 3,4 have 2 non-NA >= 2
 res_na2 <- robustrolling::rolling_variance(x_na, 3L, min_periods = 2L)
 expect_true(all(is.na(res_na2[1:2])))
 expect_equal(res_na2[3], 2.0, tolerance = 1e-12)  # var(1, 3) = 2

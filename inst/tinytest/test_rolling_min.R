@@ -90,7 +90,7 @@ expect_equal(
 )
 
 # NaN in series, default min_periods (= window_size = 3)
-# non_na_count for window=3: [1, 1, 2, 2] → all < 3 → all NA
+# non_na_count for window=3: [1, 1, 2, 2] -> all < 3 -> all NA
 x_na <- as.double(c(5, NA_real_, 3, 1))
 expect_equal(
 	robustrolling::rolling_min(x_na, 3L),
@@ -98,7 +98,7 @@ expect_equal(
 )
 
 # NaN in series, min_periods = 2
-# non_na_count: [1, 1, 2, 2] → positions 3,4 have 2 non-NA >= 2
+# non_na_count: [1, 1, 2, 2] -> positions 3,4 have 2 non-NA >= 2
 res_mp2 <- robustrolling::rolling_min(x_na, 3L, min_periods = 2L)
 expect_equal(res_mp2[1:2], c(NA_real_, NA_real_))
 expect_equal(res_mp2[3], 3, tolerance = 1e-12)  # min([5,NA,3]) = 3
