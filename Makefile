@@ -4,6 +4,7 @@ r-doc:
 	Rscript -e "devtools::document()"
 
 r-sync-headers:
+	mkdir -p inst/include
 	cp include/*.hpp inst/include/
 
 r-build: r-sync-headers r-doc
