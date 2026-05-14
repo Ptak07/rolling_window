@@ -1,29 +1,38 @@
 # robustrolling
 
+[![R package check](https://github.com/Ptak07/rolling_window/actions/workflows/r_check.yml/badge.svg)](https://github.com/Ptak07/rolling_window/actions/workflows/r_check.yml)
+[![C++ tests](https://github.com/Ptak07/rolling_window/actions/workflows/cpp_test.yml/badge.svg)](https://github.com/Ptak07/rolling_window/actions/workflows/cpp_test.yml)
+[![Python package](https://github.com/Ptak07/rolling_window/actions/workflows/python.yml/badge.svg)](https://github.com/Ptak07/rolling_window/actions/workflows/python.yml)
+
 High-performance rolling window metrics for R and Python, implemented in C++17.
 
 ---
 
 ## Overview
 
-`robustrolling` provides numerically stable, O(1) rolling window algorithms built in C++ and exposed to both R and Python. All core algorithms use the CRTP pattern to share a common interface without virtual dispatch overhead.
+`robustrolling` provides numerically stable, memory-efficient rolling window
+algorithms built in C++17 and exposed to both R and Python. All algorithms:
 
-### Algorithms
+- run in **O(1) time per element** (O(log n) for median),
+- handle **NaN / NA transparently**,
+- support a **`min_periods`** parameter (pandas-compatible semantics),
+- share a common **CRTP base** (`RollingMetric<Derived>`) — zero virtual
+  dispatch, flat ring-buffer memory layout.
 
-| Class | Algorithm | Time complexity | Memory |
-|---|---|---|---|
-| `MonotonicMax` | Monotonic deque | O(1) amortised | O(n) |
-| `MultisetMedian` | `std::multiset` + tracked iterator | O(log n) | O(n) |
-| `SlidingWelford` | Welford online algorithm | O(1) | O(n) |
-| `SlidingWelfordRing` | Welford + ring buffer | O(1) | O(n) |
+---
 
-### R functions
+## Features
 
-`rolling_max()`, `rolling_median()`, `rolling_variance()`
+Six production-grade algorithms covering the most common rolling statistics:
 
-### Python functions
-
-`rolling_max()`, `rolling_median()`, `rolling_variance()` — accept both `pd.Series` and `np.ndarray`.
+| C++ class            | Algorithm                                   | Time           | R API                                                      | Python class        |
+| -------------------- | ------------------------------------------- | -------------- | ---------------------------------------------------------- | ------------------- |
+| `SlidingWelfordRing` | Welford online + ring buffer                | O(1)           | `rolling_variance()`                                       | `SlidingWelford`    |
+| `MonotonicMax`       | Monotonic deque                             | O(1) amortised | `rolling_max()`                                            | `MonotonicMax`      |
+| `MonotonicMin`       | Monotonic deque                             | O(1) amortised | `rolling_min()`                                            | `MonotonicMin`      |
+| `MultisetMedian`     | `std::multiset` dual-iterator               | O(log n)       | `rolling_median()`                                         | `MultisetMedian`    |
+| `SlidingMoments`     | Terriberry's algorithm (4th-moment Welford) | O(1)           | `rolling_mean()` `rolling_skewness()` `rolling_kurtosis()` | `SlidingMoments`    |
+| `SlidingCovariance`  | Welford 2D online                           | O(1)           | `rolling_cov()` `rolling_cor()`                            | `SlidingCovariance` |
 
 ---
 
@@ -32,12 +41,10 @@ High-performance rolling window metrics for R and Python, implemented in C++17.
 ### R
 
 ```r
-# Install from source
-install.packages("remotes")
 remotes::install_github("Ptak07/rolling_window")
 ```
 
-Or clone and build locally:
+Or build from source:
 
 ```bash
 git clone https://github.com/Ptak07/rolling_window.git
@@ -45,12 +52,13 @@ cd rolling_window
 make r-build
 ```
 
+Requires: R ≥ 4.0, a C++17 compiler.
+
 ### Python
 
 ```bash
 git clone https://github.com/Ptak07/rolling_window.git
 cd rolling_window
-python -m venv .venv && source .venv/bin/activate
 pip install py_package/
 ```
 
@@ -59,6 +67,8 @@ With pandas support:
 ```bash
 pip install "py_package/[pandas]"
 ```
+
+Requires: Python ≥ 3.10, a C++17 compiler, pybind11.
 
 ---
 
@@ -69,38 +79,121 @@ pip install "py_package/[pandas]"
 ```r
 library(robustrolling)
 
-x <- as.double(c(1, 3, 2, 5, 4, 6, 3))
-
-rolling_max(x, 3L)
-#> [1] 1 3 3 5 5 6 6
-
-rolling_median(x, 3L)
-#> [1] 1 2 2 3 4 5 4
-
-rolling_variance(x, 3L)
-#> [1]        NA 2.000000 1.000000 4.333333 2.333333 2.333333 4.333333
+x <- as.double(c(1, 3, 2, 5, 4))
 ```
 
-### Python — numpy
+**Max / Min**
+
+```r
+rolling_max(x, 3L)
+#> [1] NA NA  3  5  5
+
+rolling_min(x, 3L)
+#> [1] NA NA  1  2  2
+```
+
+**Median**
+
+```r
+rolling_median(x, 3L)
+#> [1] NA NA  2  3  4
+```
+
+**Variance and mean**
+
+```r
+y <- as.double(c(1, 2, 3, 4, 5))
+
+rolling_variance(y, 3L)
+#> [1] NA NA  1  1  1
+
+rolling_mean(y, 3L)
+#> [1] NA NA  2  3  4
+```
+
+**Higher moments**
+
+```r
+rolling_skewness(y, 3L)
+#> [1] NA NA  0  0  0
+
+rolling_kurtosis(y, 4L)
+#> [1] NA NA NA -1.2 -1.2
+```
+
+**Covariance and Pearson correlation**
+
+```r
+a <- as.double(c(1, 2, 3, 4, 5))
+b <- as.double(c(2, 4, 6, 8, 10))
+
+rolling_cov(a, b, 3L)
+#> [1] NA NA  2  2  2
+
+rolling_cor(a, b, 3L)
+#> [1] NA NA  1  1  1
+```
+
+**`min_periods` — require fewer observations**
+
+```r
+rolling_max(x, 3L, min_periods = 1L)
+#> [1]  1  3  3  5  5
+```
+
+---
+
+### Python — high-level API
+
+All functions accept `np.ndarray` and `pd.Series`:
 
 ```python
 import numpy as np
 import robustrolling as rr
 
-x = np.array([1.0, 3.0, 2.0, 5.0, 4.0, 6.0, 3.0])
+x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
 
 rr.rolling_max(x, 3)
-# array([1., 3., 3., 5., 5., 6., 6.])
+# array([nan, nan,  3.,  5.,  5.])
+
+rr.rolling_min(x, 3)
+# array([nan, nan,  1.,  2.,  2.])
 
 rr.rolling_median(x, 3)
-# array([1., 2., 2., 3., 4., 5., 4.])
+# array([nan, nan,  2.,  3.,  4.])
 ```
 
-### Python — pandas
+```python
+y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+
+rr.rolling_variance(y, 3)
+# array([nan, nan,  1.,  1.,  1.])
+
+rr.rolling_mean(y, 3)
+# array([nan, nan,  2.,  3.,  4.])
+
+rr.rolling_skewness(y, 3)
+# array([nan, nan,  0.,  0.,  0.])
+
+rr.rolling_kurtosis(y, 4)
+# array([nan, nan,  nan, -1.2, -1.2])
+```
+
+```python
+a = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+b = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+
+rr.rolling_cov(a, b, 3)
+# array([nan, nan,  2.,  2.,  2.])
+
+rr.rolling_cor(a, b, 3)
+# array([nan, nan,  1.,  1.,  1.])
+```
+
+**pandas Series — index and name are preserved:**
 
 ```python
 import pandas as pd
-import robustrolling as rr
 
 prices = pd.Series(
     [100.0, 102.0, 98.0, 105.0, 103.0],
@@ -109,8 +202,8 @@ prices = pd.Series(
 )
 
 rr.rolling_max(prices, 3)
-# 2024-01-01    100.0
-# 2024-01-02    102.0
+# 2024-01-01      NaN
+# 2024-01-02      NaN
 # 2024-01-03    102.0
 # 2024-01-04    105.0
 # 2024-01-05    105.0
@@ -119,19 +212,60 @@ rr.rolling_max(prices, 3)
 
 ### Python — low-level C++ classes
 
+Direct access to the engine objects for incremental (streaming) use:
+
 ```python
-import robust_rolling_core as rrc
+from robustrolling import MonotonicMax, SlidingMoments, SlidingCovariance
 import numpy as np
 
-engine = rrc.MonotonicMax(3)
-engine.update(1.0)
-engine.update(3.0)
-engine.update(2.0)
-print(engine.get_value())  # 3.0
+# Streaming — one value at a time
+engine = MonotonicMax(3)
+for v in [1.0, 3.0, 2.0, 5.0]:
+    engine.update(v)
+    print(engine.get_value())
+# 1.0 → 3.0 → 3.0 → 5.0
 
-# batch processing
-out = engine.process_batch(np.array([1.0, 3.0, 2.0, 5.0, 4.0]))
+# Batch — zero-copy NumPy buffer
+engine2 = SlidingMoments(3)
+x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+print(engine2.process_mean_batch(x))
+# [nan, nan, 2., 3., 4.]
+print(engine2.process_skewness_batch(x))
+# [nan, nan, 0., 0., 0.]
+
+# Covariance engine
+cov_engine = SlidingCovariance(3)
+a = np.array([1.0, 2.0, 3.0, 4.0])
+b = np.array([2.0, 4.0, 6.0, 8.0])
+print(cov_engine.process_covariance_batch(a, b))
+# [nan, nan, 2., 2.]
+print(cov_engine.process_correlation_batch(a, b))
+# [nan, nan, 1., 1.]
 ```
+
+---
+
+## Architecture
+
+The C++ core uses **CRTP (Curiously Recurring Template Pattern)** to share a
+common interface across all algorithm classes without virtual dispatch:
+
+```
+RollingMetric<Derived>
+├── MonotonicMax       — monotonic deque (max)
+├── MonotonicMin       — monotonic deque (min)
+├── MultisetMedian     — std::multiset + dual-iterator median tracking
+├── SlidingWelfordRing — Welford variance + ring buffer eviction
+├── SlidingMoments     — Terriberry's 4th-moment recurrence (mean, skewness, kurtosis)
+└── SlidingCovariance  — 2D Welford for covariance and Pearson correlation
+```
+
+**Bindings:**
+
+| Language | Technology                       | Notes                      |
+| -------- | -------------------------------- | -------------------------- |
+| R        | Pure R/C API (`.Call`)           | No Rcpp dependency         |
+| Python   | pybind11 + NumPy buffer protocol | Zero-copy batch processing |
 
 ---
 
@@ -139,23 +273,28 @@ out = engine.process_batch(np.array([1.0, 3.0, 2.0, 5.0, 4.0]))
 
 ### Requirements
 
-- C++17 compiler
-- CMake ≥ 3.15
-- R ≥ 4.0 with `devtools`, `tinytest`, `roxygen2`
-- Python ≥ 3.10 with `pybind11`, `scikit-build-core`, `pytest`
+| Tool         | Version                                  |
+| ------------ | ---------------------------------------- |
+| C++ compiler | C++17 (GCC ≥ 9, Clang ≥ 10, MSVC ≥ 2019) |
+| CMake        | ≥ 3.14                                   |
+| R            | ≥ 4.0                                    |
+| Python       | ≥ 3.10                                   |
 
 ### Build and test
 
 ```bash
-# C++ tests
-cmake -B build && cmake --build build
+# C++ unit tests (gtest)
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target test_core --parallel
 ctest --test-dir build --output-on-failure
 
 # R package
-make r-all
+make r-build   # sync headers + roxygen + R CMD INSTALL
+make r-test    # tinytest
 
 # Python package
-make py-all
+make py-build  # editable install
+make py-test   # pytest
 ```
 
 ---

@@ -5,3 +5,4 @@
 ^\.vscode$
 ^\.clang-format$
 ^robustrolling_.*\.tar\.gz$
+^LICENSE\.md$

@@ -8,4 +8,8 @@
 \description{
 High-performance rolling window metrics with C++17 backend.
 }
+\author{
+\strong{Maintainer}: Igor Ptak \email{ptakigor2005@gmail.com}
+
+}
 \keyword{internal}

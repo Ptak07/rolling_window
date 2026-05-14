@@ -1,15 +1,19 @@
 Package: robustrolling
 Type: Package
-Title: Rolling Window Metrics
+Title: Rolling Window Metrics via C++17
 Version: 0.1.0
-Author: Igor Ptak
-Maintainer: Igor Ptak <ip@email.com>
-Description: High-performance rolling window metrics implemented in C++17 with
-	zero-copy batch processing for R vectors.
+Authors@R: person("Igor", "Ptak",
+    email = "ptakigor2005@gmail.com",
+    role = c("aut", "cre"))
+Description: High-performance rolling window metrics implemented in C++17.
+    Provides numerically stable, O(1) algorithms for variance, mean, skewness,
+    kurtosis, covariance, Pearson correlation, maximum, minimum, and median,
+    with full NA handling and min_periods semantics compatible with pandas.
 License: MIT + file LICENSE
 Encoding: UTF-8
 SystemRequirements: C++17
 NeedsCompilation: yes
+Depends: R (>= 4.0)
 Suggests: tinytest
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3

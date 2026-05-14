@@ -8,12 +8,12 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "robustrolling"
 version = "0.1.0"
-description = "High-performance rolling window metrics"
+description = "High-performance rolling window metrics implemented in C++17"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-  {name = "Igor Ptak", email = "ip@email.com"}
+  {name = "Igor Ptak", email = "ptakigor2005@gmail.com"}
 ]
 dependencies = [
   "numpy>=1.24",
