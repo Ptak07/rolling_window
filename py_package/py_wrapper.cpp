@@ -1,6 +1,7 @@
 #include "../include/MonotonicMax.hpp"
 #include "../include/MonotonicMin.hpp"
 #include "../include/MultisetMedian.hpp"
+#include "../include/SlidingMoments.hpp"
 #include "../include/SlidingWelfordRing.hpp"
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -90,5 +91,52 @@ PYBIND11_MODULE(robust_rolling_core, m) {
              return process_batch_generic(
                  self, input,
                  [](MultisetMedian &m) { return m.get_median(); });
+           });
+
+  py::class_<SlidingMoments>(m, "SlidingMoments")
+      .def(py::init<std::size_t>())
+      .def("update", &SlidingMoments::update)
+      .def("reset", &SlidingMoments::reset)
+      .def("current_size", &SlidingMoments::current_size)
+      .def("get_mean", &SlidingMoments::get_mean)
+      .def("get_skewness", &SlidingMoments::get_skewness)
+      .def("get_kurtosis", &SlidingMoments::get_kurtosis)
+      .def("process_skewness_batch",
+           [](SlidingMoments &self,
+              py::array_t<double, py::array::c_style | py::array::forcecast>
+                  input) {
+             py::buffer_info info = input.request();
+             if (info.ndim != 1)
+               throw std::runtime_error("Input must be 1D array");
+             auto result = py::array_t<double>(
+                 py::array::ShapeContainer{info.shape[0]},
+                 py::array::StridesContainer{
+                     static_cast<py::ssize_t>(sizeof(double))});
+             const auto *in = static_cast<const double *>(info.ptr);
+             auto *out = static_cast<double *>(result.request().ptr);
+             for (py::ssize_t i = 0; i < info.shape[0]; ++i) {
+               self.update(in[i]);
+               out[i] = self.get_skewness();
+             }
+             return result;
+           })
+      .def("process_kurtosis_batch",
+           [](SlidingMoments &self,
+              py::array_t<double, py::array::c_style | py::array::forcecast>
+                  input) {
+             py::buffer_info info = input.request();
+             if (info.ndim != 1)
+               throw std::runtime_error("Input must be 1D array");
+             auto result = py::array_t<double>(
+                 py::array::ShapeContainer{info.shape[0]},
+                 py::array::StridesContainer{
+                     static_cast<py::ssize_t>(sizeof(double))});
+             const auto *in = static_cast<const double *>(info.ptr);
+             auto *out = static_cast<double *>(result.request().ptr);
+             for (py::ssize_t i = 0; i < info.shape[0]; ++i) {
+               self.update(in[i]);
+               out[i] = self.get_kurtosis();
+             }
+             return result;
            });
 }

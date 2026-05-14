@@ -135,3 +135,83 @@ rolling_median <- function(x, window_size, min_periods = window_size) {
                   PACKAGE = "robustrolling")
   .apply_min_periods(result, x, window_size, mp)
 }
+
+#' @title Rolling Mean
+#'
+#' @description
+#' Computes the rolling mean over a numeric vector.
+#'
+#' @param x A numeric vector of type double.
+#' @param window_size Positive integer window length.
+#' @param min_periods Minimum number of non-\code{NA} observations required in
+#'   a window to return a result. Defaults to \code{window_size}.
+#'
+#' @return A numeric vector with rolling mean values.
+#'
+#' @export
+#'
+#' @examples
+#' x <- as.double(c(1, 2, 3, 4))
+#' rolling_mean(x, 3L)
+rolling_mean <- function(x, window_size, min_periods = window_size) {
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  .check_window(window_size)
+  mp <- .check_min_periods(min_periods, window_size)
+  result <- .Call("rolling_mean_c", x, as.integer(window_size),
+                  PACKAGE = "robustrolling")
+  .apply_min_periods(result, x, window_size, mp)
+}
+
+#' @title Rolling Skewness
+#'
+#' @description
+#' Computes the rolling adjusted Fisher-Pearson skewness over a numeric vector.
+#' Requires at least 3 non-\code{NA} observations per window.
+#'
+#' @param x A numeric vector of type double.
+#' @param window_size Positive integer window length.
+#' @param min_periods Minimum number of non-\code{NA} observations required in
+#'   a window to return a result. Defaults to \code{window_size}.
+#'
+#' @return A numeric vector with rolling skewness values.
+#'
+#' @export
+#'
+#' @examples
+#' x <- as.double(c(1, 2, 3, 4, 5))
+#' rolling_skewness(x, 3L)
+rolling_skewness <- function(x, window_size, min_periods = window_size) {
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  .check_window(window_size)
+  mp <- .check_min_periods(min_periods, window_size)
+  result <- .Call("rolling_skewness_c", x, as.integer(window_size),
+                  PACKAGE = "robustrolling")
+  .apply_min_periods(result, x, window_size, mp)
+}
+
+#' @title Rolling Kurtosis
+#'
+#' @description
+#' Computes the rolling excess kurtosis (Fisher) over a numeric vector.
+#' Requires at least 4 non-\code{NA} observations per window.
+#'
+#' @param x A numeric vector of type double.
+#' @param window_size Positive integer window length.
+#' @param min_periods Minimum number of non-\code{NA} observations required in
+#'   a window to return a result. Defaults to \code{window_size}.
+#'
+#' @return A numeric vector with rolling excess kurtosis values.
+#'
+#' @export
+#'
+#' @examples
+#' x <- as.double(c(1, 2, 3, 4, 5))
+#' rolling_kurtosis(x, 4L)
+rolling_kurtosis <- function(x, window_size, min_periods = window_size) {
+  if (!is.double(x)) stop("x must be a double vector.", call. = FALSE)
+  .check_window(window_size)
+  mp <- .check_min_periods(min_periods, window_size)
+  result <- .Call("rolling_kurtosis_c", x, as.integer(window_size),
+                  PACKAGE = "robustrolling")
+  .apply_min_periods(result, x, window_size, mp)
+}

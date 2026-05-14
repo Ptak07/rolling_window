@@ -40,11 +40,12 @@ static void moments_remove(double x_out, std::size_t &count_, double &mean_,
   double delta = x_out - mean_new;
   double delta_n = delta / n;
   double term = delta * delta_n * (n - 1);
+  double M2_old = M2_ - term;
+  double M3_old = M3_ - (term * delta_n * (n - 2) - 3 * delta_n * M2_old);
   M4_ -= term * delta_n * delta_n * (n * n - 3 * n + 3) +
-         6 * delta_n * delta_n * M2_ - 4 * delta_n * M3_;
-  M3_ -= term * delta_n * (n - 2) - 3 * delta_n * M2_;
-  M2_ -= term;
-  M2_ = std::max(0.0, M2_);
+         6 * delta_n * delta_n * M2_old - 4 * delta_n * M3_old;
+  M3_ = M3_old;
+  M2_ = std::max(0.0, M2_old);
   mean_ = mean_new;
   count_--;
 }
@@ -82,6 +83,13 @@ double SlidingMoments::get_kurtosis() const {
   double n = static_cast<double>(count_);
   double g2 = M4_ * n / (M2_ * M2_) - 3.0;
   return (n - 1.0) / ((n - 2.0) * (n - 3.0)) * ((n + 1.0) * g2 + 6.0);
+}
+
+double SlidingMoments::get_mean() const {
+  if (count_ == 0)
+    return std::numeric_limits<double>::quiet_NaN();
+
+  return mean_;
 }
 
 void SlidingMoments::update(double value) {

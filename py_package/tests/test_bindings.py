@@ -354,9 +354,9 @@ class TestSlidingMoments:
         window_size = 4
 
         s = pd.Series(data)
-        expected_skew = s.rolling(window_size).skew()
-        expected_kurt = s.rolling(window_size).kurt()
-        expected_count = s.rolling(window_size).count()
+        expected_skew = s.rolling(window_size, min_periods=3).skew()
+        expected_kurt = s.rolling(window_size, min_periods=4).kurt()
+        expected_count = s.rolling(window_size, min_periods=0).count()
 
         sm = rrc.SlidingMoments(window_size)
 
@@ -383,9 +383,9 @@ class TestSlidingMoments:
         data[np.random.rand(1000) < 0.15] = np.nan
 
         s = pd.Series(data)
-        expected_skew = s.rolling(window=window_size).skew()
-        expected_kurt = s.rolling(window=window_size).kurt()
-        expected_count = s.rolling(window=window_size).count()
+        expected_skew = s.rolling(window=window_size, min_periods=3).skew()
+        expected_kurt = s.rolling(window=window_size, min_periods=4).kurt()
+        expected_count = s.rolling(window=window_size, min_periods=0).count()
 
         sm = rrc.SlidingMoments(window_size)
 

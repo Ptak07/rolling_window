@@ -12,6 +12,7 @@ public:
   std::size_t current_size() const;
   double get_skewness() const; // adjusted Fisher-Pearson
   double get_kurtosis() const; // excess kurtosis (Fisher)
+  double get_mean() const;
 
 private:
   std::size_t window_size_;

@@ -1,6 +1,7 @@
 #include "MonotonicMax.hpp"
 #include "MonotonicMin.hpp"
 #include "MultisetMedian.hpp"
+#include "SlidingMoments.hpp"
 #include "SlidingWelfordRing.hpp"
 
 #include <R_ext/Arith.h>
@@ -104,11 +105,83 @@ SEXP rolling_median_c(SEXP r_data, SEXP r_window_size) {
   return r_result;
 }
 
+SEXP rolling_mean_c(SEXP r_data, SEXP r_window_size) {
+  if (!Rf_isReal(r_data))
+    Rf_error("Input data must be a numeric vector.");
+
+  double *input_ptr = REAL(r_data);
+  R_xlen_t n = XLENGTH(r_data);
+  std::size_t k = read_window_size(r_window_size);
+
+  SlidingMoments sm(k);
+
+  SEXP r_result;
+  PROTECT(r_result = Rf_allocVector(REALSXP, n));
+  double *output_ptr = REAL(r_result);
+
+  for (R_xlen_t i = 0; i < n; ++i) {
+    sm.update(input_ptr[i]);
+    output_ptr[i] = sm.get_mean();
+  }
+
+  UNPROTECT(1);
+  return r_result;
+}
+
+SEXP rolling_skewness_c(SEXP r_data, SEXP r_window_size) {
+  if (!Rf_isReal(r_data))
+    Rf_error("Input data must be a numeric vector.");
+
+  double *input_ptr = REAL(r_data);
+  R_xlen_t n = XLENGTH(r_data);
+  std::size_t k = read_window_size(r_window_size);
+
+  SlidingMoments sm(k);
+
+  SEXP r_result;
+  PROTECT(r_result = Rf_allocVector(REALSXP, n));
+  double *output_ptr = REAL(r_result);
+
+  for (R_xlen_t i = 0; i < n; ++i) {
+    sm.update(input_ptr[i]);
+    output_ptr[i] = sm.get_skewness();
+  }
+
+  UNPROTECT(1);
+  return r_result;
+}
+
+SEXP rolling_kurtosis_c(SEXP r_data, SEXP r_window_size) {
+  if (!Rf_isReal(r_data))
+    Rf_error("Input data must be a numeric vector.");
+
+  double *input_ptr = REAL(r_data);
+  R_xlen_t n = XLENGTH(r_data);
+  std::size_t k = read_window_size(r_window_size);
+
+  SlidingMoments sm(k);
+
+  SEXP r_result;
+  PROTECT(r_result = Rf_allocVector(REALSXP, n));
+  double *output_ptr = REAL(r_result);
+
+  for (R_xlen_t i = 0; i < n; ++i) {
+    sm.update(input_ptr[i]);
+    output_ptr[i] = sm.get_kurtosis();
+  }
+
+  UNPROTECT(1);
+  return r_result;
+}
+
 static const R_CallMethodDef CallEntries[] = {
     {"rolling_variance_c", reinterpret_cast<DL_FUNC>(&rolling_variance_c), 2},
     {"rolling_max_c", reinterpret_cast<DL_FUNC>(&rolling_max_c), 2},
     {"rolling_min_c", reinterpret_cast<DL_FUNC>(&rolling_min_c), 2},
     {"rolling_median_c", reinterpret_cast<DL_FUNC>(&rolling_median_c), 2},
+    {"rolling_mean_c", reinterpret_cast<DL_FUNC>(&rolling_mean_c), 2},
+    {"rolling_skewness_c", reinterpret_cast<DL_FUNC>(&rolling_skewness_c), 2},
+    {"rolling_kurtosis_c", reinterpret_cast<DL_FUNC>(&rolling_kurtosis_c), 2},
     {nullptr, nullptr, 0}};
 
 } // namespace
