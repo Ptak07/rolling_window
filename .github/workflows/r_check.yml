@@ -1,0 +1,67 @@
+name: R package check
+
+on:
+  push:
+    paths:
+      - R/**
+      - src/**
+      - man/**
+      - inst/**
+      - DESCRIPTION
+      - NAMESPACE
+      - .github/workflows/r_check.yml
+  pull_request:
+    paths:
+      - R/**
+      - src/**
+      - man/**
+      - inst/**
+      - DESCRIPTION
+      - NAMESPACE
+      - .github/workflows/r_check.yml
+
+jobs:
+  test-fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+
+      - name: Sync headers
+        run: make r-sync-headers
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck, any::tinytest
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          error-on: '"error"'
+
+  test-full:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+
+      - name: Sync headers
+        run: make r-sync-headers
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck, any::tinytest
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          error-on: '"error"'
