@@ -1,8 +1,8 @@
 # robustrolling
 
-[![R package check](https://github.com/Ptak07/rolling_window/actions/workflows/r_check.yml/badge.svg)](https://github.com/Ptak07/rolling_window/actions/workflows/r_check.yml)
-[![C++ tests](https://github.com/Ptak07/rolling_window/actions/workflows/cpp_test.yml/badge.svg)](https://github.com/Ptak07/rolling_window/actions/workflows/cpp_test.yml)
-[![Python package](https://github.com/Ptak07/rolling_window/actions/workflows/python.yml/badge.svg)](https://github.com/Ptak07/rolling_window/actions/workflows/python.yml)
+[![R package check](https://github.com/IgorPtak/rolling_window/actions/workflows/r_check.yml/badge.svg)](https://github.com/IgorPtak/rolling_window/actions/workflows/r_check.yml)
+[![C++ tests](https://github.com/IgorPtak/rolling_window/actions/workflows/cpp_test.yml/badge.svg)](https://github.com/IgorPtak/rolling_window/actions/workflows/cpp_test.yml)
+[![Python package](https://github.com/IgorPtak/rolling_window/actions/workflows/python.yml/badge.svg)](https://github.com/IgorPtak/rolling_window/actions/workflows/python.yml)
 
 High-performance rolling window metrics for R and Python, implemented in C++17.
 
@@ -41,13 +41,13 @@ Six production-grade algorithms covering the most common rolling statistics:
 ### R
 
 ```r
-remotes::install_github("Ptak07/rolling_window")
+remotes::install_github("IgorPtak/rolling_window")
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/Ptak07/rolling_window.git
+git clone https://github.com/IgorPtak/rolling_window.git
 cd rolling_window
 make r-build
 ```
@@ -57,7 +57,7 @@ Requires: R ≥ 4.0, a C++17 compiler.
 ### Python
 
 ```bash
-git clone https://github.com/Ptak07/rolling_window.git
+git clone https://github.com/IgorPtak/rolling_window.git
 cd rolling_window
 pip install py_package/
 ```

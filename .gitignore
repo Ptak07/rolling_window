@@ -36,3 +36,6 @@ py_package/dist/
 py_package/venv/
 __pycache__/
 *.pyc
+
+# Sphinx build output
+docs/_build/

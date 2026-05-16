@@ -78,6 +78,33 @@ def _resolve_min_periods(min_periods: int | None, window_size: int) -> int:
 
 
 def rolling_max(x, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling maximum over a sliding window.
+
+    Parameters
+    ----------
+    x : array-like
+        Input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of non-NaN observations required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling maximum values. Positions with fewer than ``min_periods``
+        valid observations are ``nan``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+    >>> rr.rolling_max(x, 3)
+    array([nan, nan,  3.,  5.,  5.])
+    """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
     result = MonotonicMax(window_size).process_batch(arr)
@@ -86,6 +113,33 @@ def rolling_max(x, window_size: int, min_periods: int | None = None):
 
 
 def rolling_min(x, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling minimum over a sliding window.
+
+    Parameters
+    ----------
+    x : array-like
+        Input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of non-NaN observations required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling minimum values. Positions with fewer than ``min_periods``
+        valid observations are ``nan``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+    >>> rr.rolling_min(x, 3)
+    array([nan, nan,  1.,  2.,  2.])
+    """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
     result = MonotonicMin(window_size).process_batch(arr)
@@ -94,6 +148,36 @@ def rolling_min(x, window_size: int, min_periods: int | None = None):
 
 
 def rolling_variance(x, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling sample variance (ddof=1) over a sliding window.
+
+    Uses the Welford online algorithm with a ring buffer for O(1) updates.
+
+    Parameters
+    ----------
+    x : array-like
+        Input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of non-NaN observations required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling sample variance. Returns ``nan`` when fewer than
+        ``min_periods`` valid observations are present, or when fewer than
+        two observations are available (variance undefined).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    >>> rr.rolling_variance(x, 3)
+    array([nan, nan,  1.,  1.,  1.])
+    """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
     result = SlidingWelford(window_size).process_batch(arr)
@@ -102,6 +186,36 @@ def rolling_variance(x, window_size: int, min_periods: int | None = None):
 
 
 def rolling_median(x, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling median over a sliding window.
+
+    Uses a ``std::multiset`` with a tracked median iterator.
+    Time complexity: O(log n) per element.
+
+    Parameters
+    ----------
+    x : array-like
+        Input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of non-NaN observations required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling median values. Positions with fewer than ``min_periods``
+        valid observations are ``nan``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 3.0, 2.0, 5.0, 4.0])
+    >>> rr.rolling_median(x, 3)
+    array([nan, nan,  2.,  3.,  4.])
+    """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
     result = MultisetMedian(window_size).process_batch(arr)
@@ -110,6 +224,33 @@ def rolling_median(x, window_size: int, min_periods: int | None = None):
 
 
 def rolling_mean(x, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling arithmetic mean over a sliding window.
+
+    Parameters
+    ----------
+    x : array-like
+        Input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of non-NaN observations required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling mean values. Positions with fewer than ``min_periods``
+        valid observations are ``nan``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    >>> rr.rolling_mean(x, 3)
+    array([nan, nan,  2.,  3.,  4.])
+    """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
     result = SlidingMoments(window_size).process_mean_batch(arr)
@@ -118,6 +259,37 @@ def rolling_mean(x, window_size: int, min_periods: int | None = None):
 
 
 def rolling_skewness(x, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling adjusted Fisher-Pearson skewness over a sliding window.
+
+    Uses Terriberry's 4th-moment online algorithm for O(1) updates.
+    Requires at least 3 valid observations per window.
+
+    Parameters
+    ----------
+    x : array-like
+        Input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of non-NaN observations required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling skewness values. Returns ``nan`` when fewer than
+        ``min_periods`` valid observations are present, or when fewer than
+        three observations are available.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    >>> rr.rolling_skewness(x, 3)
+    array([nan, nan,  0.,  0.,  0.])
+    """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
     result = SlidingMoments(window_size).process_skewness_batch(arr)
@@ -126,6 +298,38 @@ def rolling_skewness(x, window_size: int, min_periods: int | None = None):
 
 
 def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling excess kurtosis (Fisher definition) over a sliding window.
+
+    Uses Terriberry's 4th-moment online algorithm for O(1) updates.
+    Returns excess kurtosis (normal distribution = 0).
+    Requires at least 4 valid observations per window.
+
+    Parameters
+    ----------
+    x : array-like
+        Input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of non-NaN observations required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling excess kurtosis values. Returns ``nan`` when fewer than
+        ``min_periods`` valid observations are present, or when fewer than
+        four observations are available.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    >>> rr.rolling_kurtosis(x, 4)
+    array([nan, nan, nan, -1.2, -1.2])
+    """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
     result = SlidingMoments(window_size).process_kurtosis_batch(arr)
@@ -155,6 +359,38 @@ def _apply_min_periods_pair(result: np.ndarray, x: np.ndarray, y: np.ndarray,
 
 
 def rolling_cov(x, y, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling sample covariance (ddof=1) over a sliding window.
+
+    Uses the 2D Welford online algorithm for O(1) updates.
+
+    Parameters
+    ----------
+    x : array-like
+        First input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    y : array-like
+        Second input sequence, same length as ``x``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of valid (non-NaN) pairs required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling sample covariance values. Positions with fewer than
+        ``min_periods`` valid pairs are ``nan``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    >>> y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+    >>> rr.rolling_cov(x, y, 3)
+    array([nan, nan,  2.,  2.,  2.])
+    """
     ax = _to_float64(x)
     ay = _to_float64(y)
     mp = _resolve_min_periods(min_periods, window_size)
@@ -164,6 +400,38 @@ def rolling_cov(x, y, window_size: int, min_periods: int | None = None):
 
 
 def rolling_cor(x, y, window_size: int, min_periods: int | None = None):
+    """
+    Compute the rolling Pearson correlation coefficient over a sliding window.
+
+    Uses the 2D Welford online algorithm for O(1) updates.
+
+    Parameters
+    ----------
+    x : array-like
+        First input sequence. Accepts ``np.ndarray`` and ``pd.Series``.
+    y : array-like
+        Second input sequence, same length as ``x``.
+    window_size : int
+        Number of observations in the sliding window.
+    min_periods : int, optional
+        Minimum number of valid (non-NaN) pairs required to return a result.
+        Defaults to ``window_size`` (pandas-compatible semantics).
+
+    Returns
+    -------
+    numpy.ndarray or pandas.Series
+        Rolling Pearson correlation values in [-1, 1]. Positions with fewer
+        than ``min_periods`` valid pairs are ``nan``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import robustrolling as rr
+    >>> x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    >>> y = np.array([2.0, 4.0, 6.0, 8.0, 10.0])
+    >>> rr.rolling_cor(x, y, 3)
+    array([nan, nan,  1.,  1.,  1.])
+    """
     ax = _to_float64(x)
     ay = _to_float64(y)
     mp = _resolve_min_periods(min_periods, window_size)
