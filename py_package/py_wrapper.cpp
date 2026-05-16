@@ -123,7 +123,7 @@ PYBIND11_MODULE(robust_rolling_core, m) {
           [](SlidingMean &self,
              py::array_t<double, py::array::c_style | py::array::forcecast>
                  input,
-             std::size_t min_periods) {
+             std::size_t min_periods, bool assume_finite) {
             py::buffer_info info = input.request();
             if (info.ndim != 1)
               throw std::runtime_error("Input must be 1D array");
@@ -132,12 +132,16 @@ PYBIND11_MODULE(robust_rolling_core, m) {
                 py::array::ShapeContainer{info.shape[0]},
                 py::array::StridesContainer{
                     static_cast<py::ssize_t>(sizeof(double))});
-            self.fast_mean_batch(static_cast<const double *>(info.ptr), n,
-                                 static_cast<double *>(result.request().ptr),
-                                 min_periods);
+            const double *in_ptr = static_cast<const double *>(info.ptr);
+            double *out_ptr = static_cast<double *>(result.request().ptr);
+            if (assume_finite)
+              self.fast_mean_batch_finite(in_ptr, n, out_ptr, min_periods);
+            else
+              self.fast_mean_batch(in_ptr, n, out_ptr, min_periods);
             return result;
           },
-          py::arg("input"), py::arg("min_periods") = 0);
+          py::arg("input"), py::arg("min_periods") = 0,
+          py::arg("assume_finite") = false);
 
   py::class_<SlidingMoments>(m, "SlidingMoments")
       .def(py::init<std::size_t>())

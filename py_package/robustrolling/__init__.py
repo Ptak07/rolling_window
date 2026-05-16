@@ -200,7 +200,7 @@ def rolling_median(x, window_size: int, min_periods: int | None = None):
     return _wrap(result, x)
 
 
-def rolling_mean(x, window_size: int, min_periods: int | None = None):
+def rolling_mean(x, window_size: int, min_periods: int | None = None, assume_finite: bool = False):
     """
     Compute the rolling arithmetic mean over a sliding window.
 
@@ -213,7 +213,11 @@ def rolling_mean(x, window_size: int, min_periods: int | None = None):
     min_periods : int, optional
         Minimum number of non-NaN observations required to return a result.
         Defaults to ``window_size`` (pandas-compatible semantics).
-
+    assume_finite : bool, optional
+        If ``True``, assumes the input contains no ``NaN`` values and uses a
+        faster single-pass prefix-sum path with SIMD acceleration.
+        Passing ``True`` when the input does contain ``NaN`` produces
+        incorrect results. Defaults to ``False``.
     Returns
     -------
     numpy.ndarray or pandas.Series
@@ -230,7 +234,7 @@ def rolling_mean(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMean(window_size).process_batch(arr, mp)
+    result = SlidingMean(window_size).process_batch(arr, mp, assume_finite)
     return _wrap(result, x)
 
 

@@ -14,6 +14,8 @@ public:
   double get_mean() const;
   void fast_mean_batch(const double *in, std::size_t n, double *out,
                        std::size_t min_periods) const;
+  void fast_mean_batch_finite(const double *in, std::size_t n, double *out,
+                              std::size_t min_periods) const;
 
 private:
   void update_impl(double value);

@@ -68,6 +68,39 @@ void SlidingMean::fast_mean_batch(const double *in, std::size_t n, double *out,
 #endif
 }
 
+void SlidingMean::fast_mean_batch_finite(const double *in, std::size_t n,
+                                         double *out,
+                                         std::size_t min_periods) const {
+  std::vector<double> prefix(n + 1);
+  prefix[0] = 0.0;
+  for (std::size_t i = 0; i < n; ++i)
+    prefix[i + 1] = prefix[i] + in[i];
+
+  for (std::size_t i = 0; i < std::min(window_size_ - 1, n); ++i) {
+    std::size_t cnt = i + 1;
+    out[i] = cnt >= min_periods ? prefix[i + 1] / static_cast<double>(cnt)
+                                : std::numeric_limits<double>::quiet_NaN();
+  }
+
+  const double inv_k = 1.0 / static_cast<double>(window_size_);
+#if defined(__ARM_NEON)
+  {
+    float64x2_t inv_k_vec = vdupq_n_f64(inv_k);
+    std::size_t i = window_size_ - 1;
+    for (; i + 1 < n; i += 2) {
+      float64x2_t a = vld1q_f64(&prefix[i + 1]);
+      float64x2_t b = vld1q_f64(&prefix[i - window_size_ + 1]);
+      vst1q_f64(&out[i], vmulq_f64(vsubq_f64(a, b), inv_k_vec));
+    }
+    for (; i < n; ++i)
+      out[i] = (prefix[i + 1] - prefix[i - window_size_ + 1]) * inv_k;
+  }
+#else
+  for (std::size_t i = window_size_ - 1; i < n; ++i)
+    out[i] = (prefix[i + 1] - prefix[i - window_size_ + 1]) * inv_k;
+#endif
+}
+
 void SlidingMean::update_impl(double value) {
   bool ring_full = (n_written_ >= window_size_);
   if (ring_full) {
