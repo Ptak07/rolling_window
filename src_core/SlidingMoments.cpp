@@ -51,6 +51,39 @@ static void moments_remove(double x_out, std::size_t &count_, double &mean_,
   count_--;
 }
 
+static void moments_add_3(double x, std::size_t &count_, double &mean_,
+                          double &M2_, double &M3_) {
+  count_++;
+  double n = static_cast<double>(count_);
+  double delta = x - mean_;
+  double delta_n = delta / n;
+  double term = delta * delta_n * (n - 1);
+  M3_ += term * delta_n * (n - 2) - 3 * delta_n * M2_;
+  M2_ += term;
+  mean_ += delta_n;
+}
+
+static void moments_remove_3(double x_out, std::size_t &count_, double &mean_,
+                             double &M2_, double &M3_) {
+  if (count_ == 1) {
+    mean_ = 0.0;
+    M2_ = 0.0;
+    M3_ = 0.0;
+    count_ = 0;
+    return;
+  }
+  double n = static_cast<double>(count_);
+  double mean_new = (n * mean_ - x_out) / (n - 1);
+  double delta = x_out - mean_new;
+  double delta_n = delta / n;
+  double term = delta * delta_n * (n - 1);
+  double M2_old = M2_ - term;
+  M3_ -= term * delta_n * (n - 2) - 3 * delta_n * M2_old;
+  M2_ = std::max(0.0, M2_old);
+  mean_ = mean_new;
+  count_--;
+}
+
 size_t SlidingMoments::current_size() const {
   return count_;
 }
@@ -113,4 +146,20 @@ void SlidingMoments::update(double value) {
 
   if (!std::isnan(value))
     moments_add(value, count_, mean_, M2_, M3_, M4_);
+}
+
+void SlidingMoments::update_skewness_only(double value) {
+  bool ring_full = (n_written_ >= window_size_);
+  if (ring_full) {
+    double x_out = buffer_[head_];
+    if (!std::isnan(x_out))
+      moments_remove_3(x_out, count_, mean_, M2_, M3_);
+  }
+  buffer_[head_] = value;
+  if (++head_ == window_size_)
+    head_ = 0;
+  if (!ring_full)
+    n_written_++;
+  if (!std::isnan(value))
+    moments_add_3(value, count_, mean_, M2_, M3_);
 }

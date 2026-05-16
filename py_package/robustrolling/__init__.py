@@ -9,6 +9,7 @@ from robust_rolling_core import (
     SlidingCovariance,
     SlidingMean,
     SlidingMoments,
+    SlidingMomentsPrefix,
     SlidingWelford,
 )
 
@@ -126,11 +127,10 @@ def rolling_min(x, window_size: int, min_periods: int | None = None):
     return _wrap(result, x)
 
 
-def rolling_variance(x, window_size: int, min_periods: int | None = None):
+def rolling_variance(x, window_size: int, min_periods: int | None = None,
+                     method: str = "stable"):
     """
     Compute the rolling sample variance (ddof=1) over a sliding window.
-
-    Uses the Welford online algorithm with a ring buffer for O(1) updates.
 
     Parameters
     ----------
@@ -141,6 +141,11 @@ def rolling_variance(x, window_size: int, min_periods: int | None = None):
     min_periods : int, optional
         Minimum number of non-NaN observations required to return a result.
         Defaults to ``window_size`` (pandas-compatible semantics).
+    method : {"stable", "fast"}, optional
+        ``"stable"`` uses the Welford online algorithm (numerically stable,
+        default). ``"fast"`` uses a prefix-sum approach (faster for large
+        arrays, but susceptible to catastrophic cancellation when values are
+        large and variance is small).
 
     Returns
     -------
@@ -159,7 +164,10 @@ def rolling_variance(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingWelford(window_size).process_batch(arr, mp)
+    if method == "fast":
+        result = SlidingMomentsPrefix(window_size).variance_batch(arr, mp)
+    else:
+        result = SlidingWelford(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -238,12 +246,10 @@ def rolling_mean(x, window_size: int, min_periods: int | None = None, assume_fin
     return _wrap(result, x)
 
 
-def rolling_skewness(x, window_size: int, min_periods: int | None = None):
+def rolling_skewness(x, window_size: int, min_periods: int | None = None,
+                     method: str = "stable"):
     """
     Compute the rolling adjusted Fisher-Pearson skewness over a sliding window.
-
-    Uses Terriberry's 4th-moment online algorithm for O(1) updates.
-    Requires at least 3 valid observations per window.
 
     Parameters
     ----------
@@ -254,6 +260,10 @@ def rolling_skewness(x, window_size: int, min_periods: int | None = None):
     min_periods : int, optional
         Minimum number of non-NaN observations required to return a result.
         Defaults to ``window_size`` (pandas-compatible semantics).
+    method : {"stable", "fast"}, optional
+        ``"stable"`` uses Terriberry's online algorithm (numerically stable,
+        default). ``"fast"`` uses a prefix-sum approach (faster for large
+        arrays, but susceptible to catastrophic cancellation).
 
     Returns
     -------
@@ -272,15 +282,18 @@ def rolling_skewness(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_skewness_batch(arr, mp)
+    if method == "fast":
+        result = SlidingMomentsPrefix(window_size).skewness_batch(arr, mp)
+    else:
+        result = SlidingMoments(window_size).process_skewness_batch(arr, mp)
     return _wrap(result, x)
 
 
-def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
+def rolling_kurtosis(x, window_size: int, min_periods: int | None = None,
+                     method: str = "stable"):
     """
     Compute the rolling excess kurtosis (Fisher definition) over a sliding window.
 
-    Uses Terriberry's 4th-moment online algorithm for O(1) updates.
     Returns excess kurtosis (normal distribution = 0).
     Requires at least 4 valid observations per window.
 
@@ -293,6 +306,10 @@ def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
     min_periods : int, optional
         Minimum number of non-NaN observations required to return a result.
         Defaults to ``window_size`` (pandas-compatible semantics).
+    method : {"stable", "fast"}, optional
+        ``"stable"`` uses Terriberry's online algorithm (numerically stable,
+        default). ``"fast"`` uses a prefix-sum approach (faster for large
+        arrays, but susceptible to catastrophic cancellation).
 
     Returns
     -------
@@ -311,7 +328,10 @@ def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_kurtosis_batch(arr, mp)
+    if method == "fast":
+        result = SlidingMomentsPrefix(window_size).kurtosis_batch(arr, mp)
+    else:
+        result = SlidingMoments(window_size).process_kurtosis_batch(arr, mp)
     return _wrap(result, x)
 
 

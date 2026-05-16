@@ -4,6 +4,7 @@
 #include "../include/SlidingCovariance.hpp"
 #include "../include/SlidingMean.hpp"
 #include "../include/SlidingMoments.hpp"
+#include "../include/SlidingMomentsPrefix.hpp"
 #include "../include/SlidingWelfordRing.hpp"
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -189,7 +190,7 @@ PYBIND11_MODULE(robust_rolling_core, m) {
              const auto *in = static_cast<const double *>(info.ptr);
              auto *out = static_cast<double *>(result.request().ptr);
              for (py::ssize_t i = 0; i < info.shape[0]; ++i) {
-               self.update(in[i]);
+               self.update_skewness_only(in[i]);
                out[i] = self.current_size() < min_periods
                             ? std::numeric_limits<double>::quiet_NaN()
                             : self.get_skewness();
@@ -272,4 +273,37 @@ PYBIND11_MODULE(robust_rolling_core, m) {
             }
             return result;
           });
+
+  auto make_prefix_batch = [&](auto method_ptr) {
+    return [method_ptr](
+               SlidingMomentsPrefix &self,
+               py::array_t<double, py::array::c_style | py::array::forcecast>
+                   input,
+               std::size_t min_periods) {
+      py::buffer_info info = input.request();
+      if (info.ndim != 1)
+        throw std::runtime_error("Input must be 1D array");
+      std::size_t n = static_cast<std::size_t>(info.shape[0]);
+      auto result = py::array_t<double>(
+          py::array::ShapeContainer{info.shape[0]},
+          py::array::StridesContainer{
+              static_cast<py::ssize_t>(sizeof(double))});
+      (self.*method_ptr)(static_cast<const double *>(info.ptr), n,
+                         static_cast<double *>(result.request().ptr),
+                         min_periods);
+      return result;
+    };
+  };
+
+  py::class_<SlidingMomentsPrefix>(m, "SlidingMomentsPrefix")
+      .def(py::init<std::size_t>())
+      .def("variance_batch",
+           make_prefix_batch(&SlidingMomentsPrefix::variance_batch),
+           py::arg("input"), py::arg("min_periods") = 0)
+      .def("skewness_batch",
+           make_prefix_batch(&SlidingMomentsPrefix::skewness_batch),
+           py::arg("input"), py::arg("min_periods") = 0)
+      .def("kurtosis_batch",
+           make_prefix_batch(&SlidingMomentsPrefix::kurtosis_batch),
+           py::arg("input"), py::arg("min_periods") = 0);
 }

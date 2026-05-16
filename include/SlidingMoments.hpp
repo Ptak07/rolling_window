@@ -8,6 +8,7 @@ class SlidingMoments {
 public:
   explicit SlidingMoments(std::size_t window_size);
   void update(double x);
+  void update_skewness_only(double value);
   void reset();
   std::size_t current_size() const;
   double get_skewness() const; // adjusted Fisher-Pearson

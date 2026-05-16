@@ -4,7 +4,7 @@
 \alias{rolling_variance}
 \title{Rolling Sample Variance}
 \usage{
-rolling_variance(x, window_size, min_periods = window_size)
+rolling_variance(x, window_size, min_periods = window_size, method = "stable")
 }
 \arguments{
 \item{x}{A numeric vector of type double.}
@@ -14,6 +14,10 @@ rolling_variance(x, window_size, min_periods = window_size)
 \item{min_periods}{Minimum number of non-\code{NA} observations required in
 a window to return a result. Defaults to \code{window_size} (pandas
 semantics). Positions with fewer non-\code{NA} values yield \code{NA}.}
+
+\item{method}{\code{"stable"} (default) uses the Welford online algorithm.
+\code{"fast"} uses a prefix-sum approach (faster, but susceptible to
+catastrophic cancellation when values are large and variance is small).}
 }
 \value{
 A numeric vector with rolling sample variance values. Entries are

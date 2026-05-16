@@ -15,6 +15,7 @@ target_sources(robust_rolling_core PRIVATE
   ../src_core/SlidingCovariance.cpp
   ../src_core/SlidingMean.cpp
   ../src_core/SlidingMoments.cpp
+  ../src_core/SlidingMomentsPrefix.cpp
   ../src_core/SlidingWelfordRing.cpp
 )
 

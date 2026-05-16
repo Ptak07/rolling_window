@@ -20,6 +20,9 @@
 #' @param min_periods Minimum number of non-\code{NA} observations required in
 #'   a window to return a result. Defaults to \code{window_size} (pandas
 #'   semantics). Positions with fewer non-\code{NA} values yield \code{NA}.
+#' @param method \code{"stable"} (default) uses the Welford online algorithm.
+#'   \code{"fast"} uses a prefix-sum approach (faster, but susceptible to
+#'   catastrophic cancellation when values are large and variance is small).
 #'
 #' @return
 #' A numeric vector with rolling sample variance values. Entries are
@@ -32,12 +35,17 @@
 #' @examples
 #' x <- as.double(c(1, 2, 3, 4))
 #' rolling_variance(x, 3L)
-rolling_variance <- function(x, window_size, min_periods = window_size) {
+rolling_variance <- function(x, window_size, min_periods = window_size,
+                             method = "stable") {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  .Call("rolling_variance_c", x, as.integer(window_size), as.integer(mp),
-        PACKAGE = "robustrolling")
+  if (method == "fast")
+    .Call("rolling_variance_fast_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
+  else
+    .Call("rolling_variance_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Maximum
@@ -159,6 +167,9 @@ rolling_mean <- function(x, window_size, min_periods = window_size,
 #' @param window_size Positive integer window length.
 #' @param min_periods Minimum number of non-\code{NA} observations required in
 #'   a window to return a result. Defaults to \code{window_size}.
+#' @param method \code{"stable"} (default) uses Terriberry's online algorithm.
+#'   \code{"fast"} uses a prefix-sum approach (faster, but susceptible to
+#'   catastrophic cancellation when values are large and variance is small).
 #'
 #' @return A numeric vector with rolling skewness values.
 #'
@@ -167,12 +178,17 @@ rolling_mean <- function(x, window_size, min_periods = window_size,
 #' @examples
 #' x <- as.double(c(1, 2, 3, 4, 5))
 #' rolling_skewness(x, 3L)
-rolling_skewness <- function(x, window_size, min_periods = window_size) {
+rolling_skewness <- function(x, window_size, min_periods = window_size,
+                             method = "stable") {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  .Call("rolling_skewness_c", x, as.integer(window_size), as.integer(mp),
-        PACKAGE = "robustrolling")
+  if (method == "fast")
+    .Call("rolling_skewness_fast_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
+  else
+    .Call("rolling_skewness_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Kurtosis
@@ -185,6 +201,9 @@ rolling_skewness <- function(x, window_size, min_periods = window_size) {
 #' @param window_size Positive integer window length.
 #' @param min_periods Minimum number of non-\code{NA} observations required in
 #'   a window to return a result. Defaults to \code{window_size}.
+#' @param method \code{"stable"} (default) uses Terriberry's online algorithm.
+#'   \code{"fast"} uses a prefix-sum approach (faster, but susceptible to
+#'   catastrophic cancellation when values are large and variance is small).
 #'
 #' @return A numeric vector with rolling excess kurtosis values.
 #'
@@ -193,12 +212,17 @@ rolling_skewness <- function(x, window_size, min_periods = window_size) {
 #' @examples
 #' x <- as.double(c(1, 2, 3, 4, 5))
 #' rolling_kurtosis(x, 4L)
-rolling_kurtosis <- function(x, window_size, min_periods = window_size) {
+rolling_kurtosis <- function(x, window_size, min_periods = window_size,
+                             method = "stable") {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  .Call("rolling_kurtosis_c", x, as.integer(window_size), as.integer(mp),
-        PACKAGE = "robustrolling")
+  if (method == "fast")
+    .Call("rolling_kurtosis_fast_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
+  else
+    .Call("rolling_kurtosis_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Covariance

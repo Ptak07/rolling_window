@@ -4,7 +4,7 @@
 \alias{rolling_skewness}
 \title{Rolling Skewness}
 \usage{
-rolling_skewness(x, window_size, min_periods = window_size)
+rolling_skewness(x, window_size, min_periods = window_size, method = "stable")
 }
 \arguments{
 \item{x}{A numeric vector of type double.}
@@ -13,6 +13,10 @@ rolling_skewness(x, window_size, min_periods = window_size)
 
 \item{min_periods}{Minimum number of non-\code{NA} observations required in
 a window to return a result. Defaults to \code{window_size}.}
+
+\item{method}{\code{"stable"} (default) uses Terriberry's online algorithm.
+\code{"fast"} uses a prefix-sum approach (faster, but susceptible to
+catastrophic cancellation when values are large and variance is small).}
 }
 \value{
 A numeric vector with rolling skewness values.
