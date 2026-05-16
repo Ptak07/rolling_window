@@ -7,6 +7,7 @@ from robust_rolling_core import (
     MonotonicMin,
     MultisetMedian,
     SlidingCovariance,
+    SlidingMean,
     SlidingMoments,
     SlidingWelford,
 )
@@ -229,7 +230,7 @@ def rolling_mean(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_mean_batch(arr, mp)
+    result = SlidingMean(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 

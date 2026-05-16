@@ -2,6 +2,7 @@
 #include "../include/MonotonicMin.hpp"
 #include "../include/MultisetMedian.hpp"
 #include "../include/SlidingCovariance.hpp"
+#include "../include/SlidingMean.hpp"
 #include "../include/SlidingMoments.hpp"
 #include "../include/SlidingWelfordRing.hpp"
 #include <pybind11/numpy.h>
@@ -106,6 +107,21 @@ PYBIND11_MODULE(robust_rolling_core, m) {
              return process_batch_generic(
                  self, input,
                  [](MultisetMedian &m) { return m.get_median(); },
+                 min_periods);
+           },
+           py::arg("input"), py::arg("min_periods") = 0);
+
+  py::class_<SlidingMean>(m, "SlidingMean")
+      .def(py::init<std::size_t>())
+      .def("update", &SlidingMean::update)
+      .def("get_mean", &SlidingMean::get_mean)
+      .def("process_batch",
+           [](SlidingMean &self,
+              py::array_t<double, py::array::c_style | py::array::forcecast>
+                  input,
+              std::size_t min_periods) {
+             return process_batch_generic(
+                 self, input, [](SlidingMean &m) { return m.get_mean(); },
                  min_periods);
            },
            py::arg("input"), py::arg("min_periods") = 0);
