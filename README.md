@@ -17,22 +17,24 @@ algorithms built in C++17 and exposed to both R and Python. All algorithms:
 - handle **NaN / NA transparently**,
 - support a **`min_periods`** parameter (pandas-compatible semantics),
 - share a common **CRTP base** (`RollingMetric<Derived>`) — zero virtual
-  dispatch, flat ring-buffer memory layout.
+  dispatch, flat ring-buffer memory layout,
+- are compiled with **`-O3 -flto`** and include **ARM NEON / AVX2 SIMD** paths
+  for `rolling_mean`.
 
 ---
 
 ## Features
 
-Six production-grade algorithms covering the most common rolling statistics:
-
-| C++ class            | Algorithm                                   | Time           | R API                                                      | Python class        |
-| -------------------- | ------------------------------------------- | -------------- | ---------------------------------------------------------- | ------------------- |
-| `SlidingWelfordRing` | Welford online + ring buffer                | O(1)           | `rolling_variance()`                                       | `SlidingWelford`    |
-| `MonotonicMax`       | Monotonic deque                             | O(1) amortised | `rolling_max()`                                            | `MonotonicMax`      |
-| `MonotonicMin`       | Monotonic deque                             | O(1) amortised | `rolling_min()`                                            | `MonotonicMin`      |
-| `MultisetMedian`     | `std::multiset` dual-iterator               | O(log n)       | `rolling_median()`                                         | `MultisetMedian`    |
-| `SlidingMoments`     | Terriberry's algorithm (4th-moment Welford) | O(1)           | `rolling_mean()` `rolling_skewness()` `rolling_kurtosis()` | `SlidingMoments`    |
-| `SlidingCovariance`  | Welford 2D online                           | O(1)           | `rolling_cov()` `rolling_cor()`                            | `SlidingCovariance` |
+| C++ class              | Algorithm                                    | Time           | R API                                                       | Python class           |
+| ---------------------- | -------------------------------------------- | -------------- | ----------------------------------------------------------- | ---------------------- |
+| `SlidingMean`          | Prefix sum + SIMD (ARM NEON / AVX2)          | O(n) batch     | `rolling_mean()`                                            | `SlidingMean`          |
+| `SlidingWelfordRing`   | Welford online + ring buffer                 | O(1)           | `rolling_variance()` (`method="stable"`)                    | `SlidingWelford`       |
+| `SlidingMomentsPrefix` | Prefix sums of raw moments                   | O(n) batch     | `rolling_variance/skewness/kurtosis()` (`method="fast"`)    | `SlidingMomentsPrefix` |
+| `MonotonicMax`         | Monotonic deque                              | O(1) amortised | `rolling_max()`                                             | `MonotonicMax`         |
+| `MonotonicMin`         | Monotonic deque                              | O(1) amortised | `rolling_min()`                                             | `MonotonicMin`         |
+| `MultisetMedian`       | `std::multiset` dual-iterator                | O(log n)       | `rolling_median()`                                          | `MultisetMedian`       |
+| `SlidingMoments`       | Terriberry's 4th-moment recurrence           | O(1)           | `rolling_skewness/kurtosis()` (`method="stable"`)           | `SlidingMoments`       |
+| `SlidingCovariance`    | Welford 2D online                            | O(1)           | `rolling_cov()` `rolling_cor()`                             | `SlidingCovariance`    |
 
 ---
 
@@ -141,6 +143,26 @@ rolling_max(x, 3L, min_periods = 1L)
 #> [1]  1  3  3  5  5
 ```
 
+**Fast methods — prefix-sum acceleration**
+
+`method = "fast"` uses prefix sums of raw moments instead of the online
+Welford/Terriberry algorithm. It is 2–4x faster on large arrays but
+susceptible to catastrophic cancellation for very large values with small
+variance. Use it when numerical precision is not critical.
+
+```r
+rolling_variance(y, 3L, method = "fast")
+rolling_skewness(y, 3L, method = "fast")
+rolling_kurtosis(y, 4L, method = "fast")
+```
+
+`assume_finite = TRUE` enables the SIMD fast path for `rolling_mean` when the
+input is guaranteed to contain no `NA` values:
+
+```r
+rolling_mean(y, 3L, assume_finite = TRUE)
+```
+
 ---
 
 ### Python — high-level API
@@ -190,6 +212,18 @@ rr.rolling_cor(a, b, 3)
 # array([nan, nan,  1.,  1.,  1.])
 ```
 
+**Fast methods**
+
+```python
+# 2–4x faster, less numerically stable
+rr.rolling_variance(y, 3, method="fast")
+rr.rolling_skewness(y, 3, method="fast")
+rr.rolling_kurtosis(y, 4, method="fast")
+
+# SIMD mean — assumes no NaN in input
+rr.rolling_mean(y, 3, assume_finite=True)
+```
+
 **pandas Series — index and name are preserved:**
 
 ```python
@@ -228,8 +262,6 @@ for v in [1.0, 3.0, 2.0, 5.0]:
 # Batch — zero-copy NumPy buffer
 engine2 = SlidingMoments(3)
 x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-print(engine2.process_mean_batch(x))
-# [nan, nan, 2., 3., 4.]
 print(engine2.process_skewness_batch(x))
 # [nan, nan, 0., 0., 0.]
 
@@ -239,9 +271,57 @@ a = np.array([1.0, 2.0, 3.0, 4.0])
 b = np.array([2.0, 4.0, 6.0, 8.0])
 print(cov_engine.process_covariance_batch(a, b))
 # [nan, nan, 2., 2.]
-print(cov_engine.process_correlation_batch(a, b))
-# [nan, nan, 1., 1.]
 ```
+
+---
+
+## Performance
+
+Benchmarked on Apple M-series (ARM), window = 100, n = 1 000 000.
+
+### Python vs pandas
+
+Best robustrolling configuration vs pandas (¹ `assume_finite=True`, ² `method="fast"`).
+
+| Function                 | robustrolling | pandas    | speedup   |
+| ------------------------ | ------------- | --------- | --------- |
+| `rolling_mean` ¹         | 0.78 ms       | 4.58 ms   | **5.9x**  |
+| `rolling_max`            | 11.5 ms       | 12.3 ms   | 1.1x      |
+| `rolling_min`            | 11.5 ms       | 12.7 ms   | 1.1x      |
+| `rolling_median`         | 111 ms        | 233 ms    | **2.1x**  |
+| `rolling_variance` ²     | 4.4 ms        | 10.6 ms   | **2.4x**  |
+| `rolling_skewness` ²     | 10.9 ms       | 10.1 ms   | ~1.0x     |
+| `rolling_kurtosis` ²     | 8.4 ms        | 10.0 ms   | 1.2x      |
+| `rolling_cov`            | 16.8 ms       | 19.3 ms   | 1.2x      |
+| `rolling_cor`            | 16.8 ms       | 39.6 ms   | **2.4x**  |
+
+### Python — stable vs fast
+
+| Function               | stable   | fast     | speedup  |
+| ---------------------- | -------- | -------- | -------- |
+| `mean` (assume_finite) | 3.5 ms   | 0.78 ms  | **4.4x** |
+| `variance`             | 16.1 ms  | 4.4 ms   | **3.7x** |
+| `skewness`             | 23.9 ms  | 10.9 ms  | **2.2x** |
+| `kurtosis`             | 21.7 ms  | 8.4 ms   | **2.6x** |
+
+### R vs slider vs RcppRoll
+
+| Function             | robustrolling | slider     | RcppRoll  | vs slider  | vs RcppRoll |
+| -------------------- | ------------- | ---------- | --------- | ---------- | ----------- |
+| `rolling_max`        | 15.9 ms       | 349 ms     | 181 ms    | **22x**    | **11x**     |
+| `rolling_min`        | 15.2 ms       | 353 ms     | 181 ms    | **23x**    | **12x**     |
+| `rolling_mean`       | 3.2 ms        | 1 558 ms   | 39.0 ms   | **495x**   | **12x**     |
+| `rolling_variance`   | 16.9 ms       | 2 578 ms   | 320 ms    | **152x**   | **19x**     |
+| `rolling_median`     | 114 ms        | 10 254 ms  | 2 014 ms  | **90x**    | **18x**     |
+
+### R — stable vs fast
+
+| Function               | stable   | fast     | speedup  |
+| ---------------------- | -------- | -------- | -------- |
+| `mean` (assume_finite) | 3.3 ms   | 0.80 ms  | **4.2x** |
+| `variance`             | 16.8 ms  | 4.4 ms   | **3.9x** |
+| `skewness`             | 21.9 ms  | 10.6 ms  | **2.1x** |
+| `kurtosis`             | 21.6 ms  | 8.3 ms   | **2.6x** |
 
 ---
 
@@ -252,12 +332,15 @@ common interface across all algorithm classes without virtual dispatch:
 
 ```
 RollingMetric<Derived>
-├── MonotonicMax       — monotonic deque (max)
-├── MonotonicMin       — monotonic deque (min)
-├── MultisetMedian     — std::multiset + dual-iterator median tracking
-├── SlidingWelfordRing — Welford variance + ring buffer eviction
-├── SlidingMoments     — Terriberry's 4th-moment recurrence (mean, skewness, kurtosis)
-└── SlidingCovariance  — 2D Welford for covariance and Pearson correlation
+├── SlidingMean          — prefix sum + ARM NEON / AVX2 SIMD
+├── MonotonicMax         — monotonic deque (max)
+├── MonotonicMin         — monotonic deque (min)
+├── MultisetMedian       — std::multiset + dual-iterator median tracking
+├── SlidingWelfordRing   — Welford variance + ring buffer eviction
+├── SlidingMoments       — Terriberry's 4th-moment recurrence
+└── SlidingCovariance    — 2D Welford for covariance and Pearson correlation
+
+SlidingMomentsPrefix     — stateless batch engine (prefix sums of raw moments)
 ```
 
 **Bindings:**
@@ -273,12 +356,12 @@ RollingMetric<Derived>
 
 ### Requirements
 
-| Tool         | Version                                  |
-| ------------ | ---------------------------------------- |
+| Tool         | Version                                   |
+| ------------ | ----------------------------------------- |
 | C++ compiler | C++17 (GCC ≥ 9, Clang ≥ 10, MSVC ≥ 2019) |
-| CMake        | ≥ 3.14                                   |
-| R            | ≥ 4.0                                    |
-| Python       | ≥ 3.10                                   |
+| CMake        | ≥ 3.14                                    |
+| R            | ≥ 4.0                                     |
+| Python       | ≥ 3.10                                    |
 
 ### Build and test
 
@@ -295,6 +378,10 @@ make r-test    # tinytest
 # Python package
 make py-build  # editable install
 make py-test   # pytest
+
+# Benchmarks
+Rscript benchmarks/bench_r.R
+python benchmarks/bench_python.py
 ```
 
 ---
