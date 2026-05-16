@@ -28,4 +28,5 @@ private:
   std::size_t window_size_;
   std::size_t current_tick_;
   std::deque<Element> deque_;
+  std::deque<std::size_t> non_nan_ticks_;
 };

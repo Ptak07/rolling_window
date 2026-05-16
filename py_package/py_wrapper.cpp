@@ -14,7 +14,8 @@ template <typename Metric, typename Getter>
 py::array_t<double> process_batch_generic(
     Metric &metric,
     py::array_t<double, py::array::c_style | py::array::forcecast> input_array,
-    Getter getter) {
+    Getter getter, std::size_t min_periods) {
+
   py::buffer_info in_info = input_array.request();
   if (in_info.ndim != 1)
     throw std::runtime_error("Input must be 1D array");
@@ -36,6 +37,9 @@ py::array_t<double> process_batch_generic(
       metric.update(value);
       out_ptr[i] = getter(metric);
     }
+
+    if (metric.current_size() < min_periods)
+      out_ptr[i] = std::numeric_limits<double>::quiet_NaN();
   }
 
   return result_array;
@@ -51,11 +55,14 @@ PYBIND11_MODULE(robust_rolling_core, m) {
       .def("process_batch",
            [](SlidingWelfordRing &self,
               py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input) {
+                  input,
+              std::size_t min_periods) {
              return process_batch_generic(
                  self, input,
-                 [](SlidingWelfordRing &m) { return m.get_variance(); });
-           });
+                 [](SlidingWelfordRing &m) { return m.get_variance(); },
+                 min_periods);
+           },
+           py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<MonotonicMax>(m, "MonotonicMax")
       .def(py::init<std::size_t>())
@@ -64,10 +71,13 @@ PYBIND11_MODULE(robust_rolling_core, m) {
       .def("process_batch",
            [](MonotonicMax &self,
               py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input) {
+                  input,
+              std::size_t min_periods) {
              return process_batch_generic(
-                 self, input, [](MonotonicMax &m) { return m.get_max(); });
-           });
+                 self, input, [](MonotonicMax &m) { return m.get_max(); },
+                 min_periods);
+           },
+           py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<MonotonicMin>(m, "MonotonicMin")
       .def(py::init<std::size_t>())
@@ -76,10 +86,13 @@ PYBIND11_MODULE(robust_rolling_core, m) {
       .def("process_batch",
            [](MonotonicMin &self,
               py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input) {
+                  input,
+              std::size_t min_periods) {
              return process_batch_generic(
-                 self, input, [](MonotonicMin &m) { return m.get_min(); });
-           });
+                 self, input, [](MonotonicMin &m) { return m.get_min(); },
+                 min_periods);
+           },
+           py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<MultisetMedian>(m, "MultisetMedian")
       .def(py::init<std::size_t>())
@@ -88,11 +101,14 @@ PYBIND11_MODULE(robust_rolling_core, m) {
       .def("process_batch",
            [](MultisetMedian &self,
               py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input) {
+                  input,
+              std::size_t min_periods) {
              return process_batch_generic(
                  self, input,
-                 [](MultisetMedian &m) { return m.get_median(); });
-           });
+                 [](MultisetMedian &m) { return m.get_median(); },
+                 min_periods);
+           },
+           py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<SlidingMoments>(m, "SlidingMoments")
       .def(py::init<std::size_t>())
@@ -105,7 +121,9 @@ PYBIND11_MODULE(robust_rolling_core, m) {
       .def("process_mean_batch",
            [](SlidingMoments &self,
               py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input) {
+                  input,
+              std::size_t min_periods) {
+             // min_periods=0 means no restriction
              py::buffer_info info = input.request();
              if (info.ndim != 1)
                throw std::runtime_error("Input must be 1D array");
@@ -117,14 +135,17 @@ PYBIND11_MODULE(robust_rolling_core, m) {
              auto *out = static_cast<double *>(result.request().ptr);
              for (py::ssize_t i = 0; i < info.shape[0]; ++i) {
                self.update(in[i]);
-               out[i] = self.get_mean();
+               out[i] = self.current_size() < min_periods
+                            ? std::numeric_limits<double>::quiet_NaN()
+                            : self.get_mean();
              }
              return result;
            })
       .def("process_skewness_batch",
            [](SlidingMoments &self,
               py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input) {
+                  input,
+              std::size_t min_periods) {
              py::buffer_info info = input.request();
              if (info.ndim != 1)
                throw std::runtime_error("Input must be 1D array");
@@ -136,14 +157,17 @@ PYBIND11_MODULE(robust_rolling_core, m) {
              auto *out = static_cast<double *>(result.request().ptr);
              for (py::ssize_t i = 0; i < info.shape[0]; ++i) {
                self.update(in[i]);
-               out[i] = self.get_skewness();
+               out[i] = self.current_size() < min_periods
+                            ? std::numeric_limits<double>::quiet_NaN()
+                            : self.get_skewness();
              }
              return result;
            })
       .def("process_kurtosis_batch",
            [](SlidingMoments &self,
               py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input) {
+                  input,
+              std::size_t min_periods) {
              py::buffer_info info = input.request();
              if (info.ndim != 1)
                throw std::runtime_error("Input must be 1D array");
@@ -155,7 +179,9 @@ PYBIND11_MODULE(robust_rolling_core, m) {
              auto *out = static_cast<double *>(result.request().ptr);
              for (py::ssize_t i = 0; i < info.shape[0]; ++i) {
                self.update(in[i]);
-               out[i] = self.get_kurtosis();
+               out[i] = self.current_size() < min_periods
+                            ? std::numeric_limits<double>::quiet_NaN()
+                            : self.get_kurtosis();
              }
              return result;
            });
@@ -167,48 +193,50 @@ PYBIND11_MODULE(robust_rolling_core, m) {
       .def("get_correlation", &SlidingCovariance::get_correlation)
       .def("get_mean_x", &SlidingCovariance::get_mean_x)
       .def("get_mean_y", &SlidingCovariance::get_mean_y)
-      .def("process_covariance_batch",
-           [](SlidingCovariance &self,
-              py::array_t<double, py::array::c_style | py::array::forcecast> x,
-              py::array_t<double, py::array::c_style | py::array::forcecast> y) {
-             py::buffer_info xi = x.request(), yi = y.request();
-             if (xi.ndim != 1 || yi.ndim != 1)
-               throw std::runtime_error("Inputs must be 1D arrays");
-             if (xi.shape[0] != yi.shape[0])
-               throw std::runtime_error("x and y must have the same length");
-             auto result = py::array_t<double>(
-                 py::array::ShapeContainer{xi.shape[0]},
-                 py::array::StridesContainer{
-                     static_cast<py::ssize_t>(sizeof(double))});
-             const auto *xp = static_cast<const double *>(xi.ptr);
-             const auto *yp = static_cast<const double *>(yi.ptr);
-             auto *out = static_cast<double *>(result.request().ptr);
-             for (py::ssize_t i = 0; i < xi.shape[0]; ++i) {
-               self.update(xp[i], yp[i]);
-               out[i] = self.get_covariance();
-             }
-             return result;
-           })
-      .def("process_correlation_batch",
-           [](SlidingCovariance &self,
-              py::array_t<double, py::array::c_style | py::array::forcecast> x,
-              py::array_t<double, py::array::c_style | py::array::forcecast> y) {
-             py::buffer_info xi = x.request(), yi = y.request();
-             if (xi.ndim != 1 || yi.ndim != 1)
-               throw std::runtime_error("Inputs must be 1D arrays");
-             if (xi.shape[0] != yi.shape[0])
-               throw std::runtime_error("x and y must have the same length");
-             auto result = py::array_t<double>(
-                 py::array::ShapeContainer{xi.shape[0]},
-                 py::array::StridesContainer{
-                     static_cast<py::ssize_t>(sizeof(double))});
-             const auto *xp = static_cast<const double *>(xi.ptr);
-             const auto *yp = static_cast<const double *>(yi.ptr);
-             auto *out = static_cast<double *>(result.request().ptr);
-             for (py::ssize_t i = 0; i < xi.shape[0]; ++i) {
-               self.update(xp[i], yp[i]);
-               out[i] = self.get_correlation();
-             }
-             return result;
-           });
+      .def(
+          "process_covariance_batch",
+          [](SlidingCovariance &self,
+             py::array_t<double, py::array::c_style | py::array::forcecast> x,
+             py::array_t<double, py::array::c_style | py::array::forcecast> y) {
+            py::buffer_info xi = x.request(), yi = y.request();
+            if (xi.ndim != 1 || yi.ndim != 1)
+              throw std::runtime_error("Inputs must be 1D arrays");
+            if (xi.shape[0] != yi.shape[0])
+              throw std::runtime_error("x and y must have the same length");
+            auto result = py::array_t<double>(
+                py::array::ShapeContainer{xi.shape[0]},
+                py::array::StridesContainer{
+                    static_cast<py::ssize_t>(sizeof(double))});
+            const auto *xp = static_cast<const double *>(xi.ptr);
+            const auto *yp = static_cast<const double *>(yi.ptr);
+            auto *out = static_cast<double *>(result.request().ptr);
+            for (py::ssize_t i = 0; i < xi.shape[0]; ++i) {
+              self.update(xp[i], yp[i]);
+              out[i] = self.get_covariance();
+            }
+            return result;
+          })
+      .def(
+          "process_correlation_batch",
+          [](SlidingCovariance &self,
+             py::array_t<double, py::array::c_style | py::array::forcecast> x,
+             py::array_t<double, py::array::c_style | py::array::forcecast> y) {
+            py::buffer_info xi = x.request(), yi = y.request();
+            if (xi.ndim != 1 || yi.ndim != 1)
+              throw std::runtime_error("Inputs must be 1D arrays");
+            if (xi.shape[0] != yi.shape[0])
+              throw std::runtime_error("x and y must have the same length");
+            auto result = py::array_t<double>(
+                py::array::ShapeContainer{xi.shape[0]},
+                py::array::StridesContainer{
+                    static_cast<py::ssize_t>(sizeof(double))});
+            const auto *xp = static_cast<const double *>(xi.ptr);
+            const auto *yp = static_cast<const double *>(yi.ptr);
+            auto *out = static_cast<double *>(result.request().ptr);
+            for (py::ssize_t i = 0; i < xi.shape[0]; ++i) {
+              self.update(xp[i], yp[i]);
+              out[i] = self.get_correlation();
+            }
+            return result;
+          });
 }

@@ -8,6 +8,7 @@ class SlidingCovariance {
 public:
   explicit SlidingCovariance(std::size_t window_size);
   void update(double x, double y);
+  std::size_t current_size() const;
   double get_covariance() const;
   double get_correlation() const;
   double get_mean_x() const;

@@ -48,26 +48,6 @@ def _wrap(result: np.ndarray, original):
     return result
 
 
-def _count_non_nan_in_window(arr: np.ndarray, window_size: int) -> np.ndarray:
-    not_nan = (~np.isnan(arr)).astype(np.float64)
-    cum = np.cumsum(not_nan)
-    lagged = np.empty_like(cum)
-    lagged[:window_size] = 0.0
-    if len(arr) > window_size:
-        lagged[window_size:] = cum[:-window_size]
-    return cum - lagged
-
-
-def _apply_min_periods(result: np.ndarray, arr: np.ndarray,
-                       window_size: int, min_periods: int) -> np.ndarray:
-    if min_periods == 0 or len(arr) == 0:
-        return result
-    non_na_count = _count_non_nan_in_window(arr, window_size)
-    result = result.copy()
-    result[non_na_count < min_periods] = np.nan
-    return result
-
-
 def _resolve_min_periods(min_periods: int | None, window_size: int) -> int:
     mp = window_size if min_periods is None else int(min_periods)
     if mp < 0 or mp > window_size:
@@ -107,8 +87,7 @@ def rolling_max(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = MonotonicMax(window_size).process_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = MonotonicMax(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -142,8 +121,7 @@ def rolling_min(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = MonotonicMin(window_size).process_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = MonotonicMin(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -180,8 +158,7 @@ def rolling_variance(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingWelford(window_size).process_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = SlidingWelford(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -218,8 +195,7 @@ def rolling_median(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = MultisetMedian(window_size).process_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = MultisetMedian(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -253,8 +229,7 @@ def rolling_mean(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_mean_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = SlidingMoments(window_size).process_mean_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -292,8 +267,7 @@ def rolling_skewness(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_skewness_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = SlidingMoments(window_size).process_skewness_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -332,8 +306,7 @@ def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_kurtosis_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = SlidingMoments(window_size).process_kurtosis_batch(arr, mp)
     return _wrap(result, x)
 
 

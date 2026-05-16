@@ -15,7 +15,7 @@ double MonotonicMax::get_value_impl() const {
 }
 
 std::size_t MonotonicMax::current_size_impl() const {
-  return std::min(current_tick_, window_size_);
+  return non_nan_ticks_.size();
 }
 
 double MonotonicMax::get_max() const {
@@ -26,6 +26,10 @@ void MonotonicMax::skip_impl() {
   while (!deque_.empty() &&
          current_tick_ - deque_.front().tick_index >= window_size_) {
     deque_.pop_front();
+  }
+  while (!non_nan_ticks_.empty() &&
+         current_tick_ - non_nan_ticks_.front() >= window_size_) {
+    non_nan_ticks_.pop_front();
   }
   current_tick_++;
 }
@@ -40,5 +44,10 @@ void MonotonicMax::update_impl(double value) {
          current_tick_ - deque_.front().tick_index >= window_size_) {
     deque_.pop_front();
   }
+  while (!non_nan_ticks_.empty() &&
+         current_tick_ - non_nan_ticks_.front() >= window_size_) {
+    non_nan_ticks_.pop_front();
+  }
+  non_nan_ticks_.push_back(current_tick_);
   current_tick_++;
 }

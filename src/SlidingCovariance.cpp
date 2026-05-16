@@ -59,6 +59,8 @@ static void cov_remove(double x_out, double y_out, std::size_t &count_,
   count_--;
 }
 
+std::size_t SlidingCovariance::current_size() const { return count_; }
+
 double SlidingCovariance::get_mean_x() const {
   if (count_ == 0)
     return std::numeric_limits<double>::quiet_NaN();
