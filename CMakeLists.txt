@@ -13,6 +13,7 @@ add_library(rolling_core
     src_core/MonotonicMin.cpp
     src_core/SlidingWelford.cpp
     src_core/SlidingWelfordRing.cpp
+    src_core/SlidingMean.cpp
     src_core/SlidingMoments.cpp
     src_core/SlidingCovariance.cpp
 )

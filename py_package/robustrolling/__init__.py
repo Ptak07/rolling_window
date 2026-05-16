@@ -7,7 +7,9 @@ from robust_rolling_core import (
     MonotonicMin,
     MultisetMedian,
     SlidingCovariance,
+    SlidingMean,
     SlidingMoments,
+    SlidingMomentsPrefix,
     SlidingWelford,
 )
 
@@ -45,26 +47,6 @@ def _to_float64(x) -> np.ndarray:
 def _wrap(result: np.ndarray, original):
     if _HAS_PANDAS and isinstance(original, pd.Series):
         return pd.Series(result, index=original.index, name=original.name)
-    return result
-
-
-def _count_non_nan_in_window(arr: np.ndarray, window_size: int) -> np.ndarray:
-    not_nan = (~np.isnan(arr)).astype(np.float64)
-    cum = np.cumsum(not_nan)
-    lagged = np.empty_like(cum)
-    lagged[:window_size] = 0.0
-    if len(arr) > window_size:
-        lagged[window_size:] = cum[:-window_size]
-    return cum - lagged
-
-
-def _apply_min_periods(result: np.ndarray, arr: np.ndarray,
-                       window_size: int, min_periods: int) -> np.ndarray:
-    if min_periods == 0 or len(arr) == 0:
-        return result
-    non_na_count = _count_non_nan_in_window(arr, window_size)
-    result = result.copy()
-    result[non_na_count < min_periods] = np.nan
     return result
 
 
@@ -107,8 +89,7 @@ def rolling_max(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = MonotonicMax(window_size).process_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = MonotonicMax(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -142,16 +123,14 @@ def rolling_min(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = MonotonicMin(window_size).process_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = MonotonicMin(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
-def rolling_variance(x, window_size: int, min_periods: int | None = None):
+def rolling_variance(x, window_size: int, min_periods: int | None = None,
+                     method: str = "stable"):
     """
     Compute the rolling sample variance (ddof=1) over a sliding window.
-
-    Uses the Welford online algorithm with a ring buffer for O(1) updates.
 
     Parameters
     ----------
@@ -162,6 +141,11 @@ def rolling_variance(x, window_size: int, min_periods: int | None = None):
     min_periods : int, optional
         Minimum number of non-NaN observations required to return a result.
         Defaults to ``window_size`` (pandas-compatible semantics).
+    method : {"stable", "fast"}, optional
+        ``"stable"`` uses the Welford online algorithm (numerically stable,
+        default). ``"fast"`` uses a prefix-sum approach (faster for large
+        arrays, but susceptible to catastrophic cancellation when values are
+        large and variance is small).
 
     Returns
     -------
@@ -180,8 +164,10 @@ def rolling_variance(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingWelford(window_size).process_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    if method == "fast":
+        result = SlidingMomentsPrefix(window_size).variance_batch(arr, mp)
+    else:
+        result = SlidingWelford(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
@@ -218,12 +204,11 @@ def rolling_median(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = MultisetMedian(window_size).process_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = MultisetMedian(window_size).process_batch(arr, mp)
     return _wrap(result, x)
 
 
-def rolling_mean(x, window_size: int, min_periods: int | None = None):
+def rolling_mean(x, window_size: int, min_periods: int | None = None, assume_finite: bool = False):
     """
     Compute the rolling arithmetic mean over a sliding window.
 
@@ -236,7 +221,11 @@ def rolling_mean(x, window_size: int, min_periods: int | None = None):
     min_periods : int, optional
         Minimum number of non-NaN observations required to return a result.
         Defaults to ``window_size`` (pandas-compatible semantics).
-
+    assume_finite : bool, optional
+        If ``True``, assumes the input contains no ``NaN`` values and uses a
+        faster single-pass prefix-sum path with SIMD acceleration.
+        Passing ``True`` when the input does contain ``NaN`` produces
+        incorrect results. Defaults to ``False``.
     Returns
     -------
     numpy.ndarray or pandas.Series
@@ -253,17 +242,14 @@ def rolling_mean(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_mean_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    result = SlidingMean(window_size).process_batch(arr, mp, assume_finite)
     return _wrap(result, x)
 
 
-def rolling_skewness(x, window_size: int, min_periods: int | None = None):
+def rolling_skewness(x, window_size: int, min_periods: int | None = None,
+                     method: str = "stable"):
     """
     Compute the rolling adjusted Fisher-Pearson skewness over a sliding window.
-
-    Uses Terriberry's 4th-moment online algorithm for O(1) updates.
-    Requires at least 3 valid observations per window.
 
     Parameters
     ----------
@@ -274,6 +260,10 @@ def rolling_skewness(x, window_size: int, min_periods: int | None = None):
     min_periods : int, optional
         Minimum number of non-NaN observations required to return a result.
         Defaults to ``window_size`` (pandas-compatible semantics).
+    method : {"stable", "fast"}, optional
+        ``"stable"`` uses Terriberry's online algorithm (numerically stable,
+        default). ``"fast"`` uses a prefix-sum approach (faster for large
+        arrays, but susceptible to catastrophic cancellation).
 
     Returns
     -------
@@ -292,16 +282,18 @@ def rolling_skewness(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_skewness_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    if method == "fast":
+        result = SlidingMomentsPrefix(window_size).skewness_batch(arr, mp)
+    else:
+        result = SlidingMoments(window_size).process_skewness_batch(arr, mp)
     return _wrap(result, x)
 
 
-def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
+def rolling_kurtosis(x, window_size: int, min_periods: int | None = None,
+                     method: str = "stable"):
     """
     Compute the rolling excess kurtosis (Fisher definition) over a sliding window.
 
-    Uses Terriberry's 4th-moment online algorithm for O(1) updates.
     Returns excess kurtosis (normal distribution = 0).
     Requires at least 4 valid observations per window.
 
@@ -314,6 +306,10 @@ def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
     min_periods : int, optional
         Minimum number of non-NaN observations required to return a result.
         Defaults to ``window_size`` (pandas-compatible semantics).
+    method : {"stable", "fast"}, optional
+        ``"stable"`` uses Terriberry's online algorithm (numerically stable,
+        default). ``"fast"`` uses a prefix-sum approach (faster for large
+        arrays, but susceptible to catastrophic cancellation).
 
     Returns
     -------
@@ -332,8 +328,10 @@ def rolling_kurtosis(x, window_size: int, min_periods: int | None = None):
     """
     arr = _to_float64(x)
     mp = _resolve_min_periods(min_periods, window_size)
-    result = SlidingMoments(window_size).process_kurtosis_batch(arr)
-    result = _apply_min_periods(result, arr, window_size, mp)
+    if method == "fast":
+        result = SlidingMomentsPrefix(window_size).kurtosis_batch(arr, mp)
+    else:
+        result = SlidingMoments(window_size).process_kurtosis_batch(arr, mp)
     return _wrap(result, x)
 
 

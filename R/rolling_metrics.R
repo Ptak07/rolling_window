@@ -1,16 +1,3 @@
-# Count non-NA values inside each rolling window using vectorised cumsum.
-.count_non_na <- function(x, window_size) {
-  cum <- cumsum(!is.na(x))
-  lagged <- c(rep(0L, window_size), cum)[seq_along(x)]
-  cum - lagged
-}
-
-.apply_min_periods <- function(result, x, window_size, min_periods) {
-  if (min_periods == 0L || length(x) == 0L) return(result)
-  result[.count_non_na(x, window_size) < min_periods] <- NA_real_
-  result
-}
-
 .check_window <- function(window_size) {
   if (!is.finite(window_size) || window_size < 1L)
     stop("window_size must be a positive finite integer.", call. = FALSE)
@@ -33,6 +20,9 @@
 #' @param min_periods Minimum number of non-\code{NA} observations required in
 #'   a window to return a result. Defaults to \code{window_size} (pandas
 #'   semantics). Positions with fewer non-\code{NA} values yield \code{NA}.
+#' @param method \code{"stable"} (default) uses the Welford online algorithm.
+#'   \code{"fast"} uses a prefix-sum approach (faster, but susceptible to
+#'   catastrophic cancellation when values are large and variance is small).
 #'
 #' @return
 #' A numeric vector with rolling sample variance values. Entries are
@@ -45,13 +35,17 @@
 #' @examples
 #' x <- as.double(c(1, 2, 3, 4))
 #' rolling_variance(x, 3L)
-rolling_variance <- function(x, window_size, min_periods = window_size) {
+rolling_variance <- function(x, window_size, min_periods = window_size,
+                             method = "stable") {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_variance_c", x, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  if (method == "fast")
+    .Call("rolling_variance_fast_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
+  else
+    .Call("rolling_variance_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Maximum
@@ -76,9 +70,8 @@ rolling_max <- function(x, window_size, min_periods = window_size) {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_max_c", x, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  .Call("rolling_max_c", x, as.integer(window_size), as.integer(mp),
+        PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Minimum
@@ -103,9 +96,8 @@ rolling_min <- function(x, window_size, min_periods = window_size) {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_min_c", x, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  .Call("rolling_min_c", x, as.integer(window_size), as.integer(mp),
+        PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Median
@@ -131,9 +123,8 @@ rolling_median <- function(x, window_size, min_periods = window_size) {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_median_c", x, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  .Call("rolling_median_c", x, as.integer(window_size), as.integer(mp),
+        PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Mean
@@ -145,6 +136,10 @@ rolling_median <- function(x, window_size, min_periods = window_size) {
 #' @param window_size Positive integer window length.
 #' @param min_periods Minimum number of non-\code{NA} observations required in
 #'   a window to return a result. Defaults to \code{window_size}.
+#' @param assume_finite If \code{TRUE}, assumes the input contains no
+#'   \code{NA} values and uses a faster SIMD prefix-sum path. Passing
+#'   \code{TRUE} when \code{NA}s are present produces incorrect results.
+#'   Defaults to \code{FALSE}.
 #'
 #' @return A numeric vector with rolling mean values.
 #'
@@ -153,13 +148,13 @@ rolling_median <- function(x, window_size, min_periods = window_size) {
 #' @examples
 #' x <- as.double(c(1, 2, 3, 4))
 #' rolling_mean(x, 3L)
-rolling_mean <- function(x, window_size, min_periods = window_size) {
+rolling_mean <- function(x, window_size, min_periods = window_size,
+                         assume_finite = FALSE) {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_mean_c", x, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  .Call("rolling_mean_c", x, as.integer(window_size), as.integer(mp),
+        as.logical(assume_finite), PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Skewness
@@ -172,6 +167,9 @@ rolling_mean <- function(x, window_size, min_periods = window_size) {
 #' @param window_size Positive integer window length.
 #' @param min_periods Minimum number of non-\code{NA} observations required in
 #'   a window to return a result. Defaults to \code{window_size}.
+#' @param method \code{"stable"} (default) uses Terriberry's online algorithm.
+#'   \code{"fast"} uses a prefix-sum approach (faster, but susceptible to
+#'   catastrophic cancellation when values are large and variance is small).
 #'
 #' @return A numeric vector with rolling skewness values.
 #'
@@ -180,13 +178,17 @@ rolling_mean <- function(x, window_size, min_periods = window_size) {
 #' @examples
 #' x <- as.double(c(1, 2, 3, 4, 5))
 #' rolling_skewness(x, 3L)
-rolling_skewness <- function(x, window_size, min_periods = window_size) {
+rolling_skewness <- function(x, window_size, min_periods = window_size,
+                             method = "stable") {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_skewness_c", x, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  if (method == "fast")
+    .Call("rolling_skewness_fast_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
+  else
+    .Call("rolling_skewness_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Kurtosis
@@ -199,6 +201,9 @@ rolling_skewness <- function(x, window_size, min_periods = window_size) {
 #' @param window_size Positive integer window length.
 #' @param min_periods Minimum number of non-\code{NA} observations required in
 #'   a window to return a result. Defaults to \code{window_size}.
+#' @param method \code{"stable"} (default) uses Terriberry's online algorithm.
+#'   \code{"fast"} uses a prefix-sum approach (faster, but susceptible to
+#'   catastrophic cancellation when values are large and variance is small).
 #'
 #' @return A numeric vector with rolling excess kurtosis values.
 #'
@@ -207,13 +212,17 @@ rolling_skewness <- function(x, window_size, min_periods = window_size) {
 #' @examples
 #' x <- as.double(c(1, 2, 3, 4, 5))
 #' rolling_kurtosis(x, 4L)
-rolling_kurtosis <- function(x, window_size, min_periods = window_size) {
+rolling_kurtosis <- function(x, window_size, min_periods = window_size,
+                             method = "stable") {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_kurtosis_c", x, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  if (method == "fast")
+    .Call("rolling_kurtosis_fast_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
+  else
+    .Call("rolling_kurtosis_c", x, as.integer(window_size), as.integer(mp),
+          PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Covariance
@@ -241,9 +250,8 @@ rolling_cov <- function(x, y, window_size, min_periods = window_size) {
   if (length(x) != length(y)) stop("x and y must have the same length.", call. = FALSE)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_cov_c", x, y, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  .Call("rolling_cov_c", x, y, as.integer(window_size), as.integer(mp),
+        PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Correlation
@@ -271,7 +279,6 @@ rolling_cor <- function(x, y, window_size, min_periods = window_size) {
   if (length(x) != length(y)) stop("x and y must have the same length.", call. = FALSE)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
-  result <- .Call("rolling_cor_c", x, y, as.integer(window_size),
-                  PACKAGE = "robustrolling")
-  .apply_min_periods(result, x, window_size, mp)
+  .Call("rolling_cor_c", x, y, as.integer(window_size), as.integer(mp),
+        PACKAGE = "robustrolling")
 }

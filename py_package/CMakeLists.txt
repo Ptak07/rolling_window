@@ -13,10 +13,13 @@ target_sources(robust_rolling_core PRIVATE
   ../src_core/MonotonicMin.cpp
   ../src_core/MultisetMedian.cpp
   ../src_core/SlidingCovariance.cpp
+  ../src_core/SlidingMean.cpp
   ../src_core/SlidingMoments.cpp
+  ../src_core/SlidingMomentsPrefix.cpp
   ../src_core/SlidingWelfordRing.cpp
 )
 
-target_compile_options(robust_rolling_core PRIVATE -O3 -DNDEBUG)
+target_compile_options(robust_rolling_core PRIVATE -O3 -DNDEBUG -flto)
+target_link_options(robust_rolling_core PRIVATE -flto)
 
 install(TARGETS robust_rolling_core LIBRARY DESTINATION .)

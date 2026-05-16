@@ -298,6 +298,93 @@ class TestMultisetMedian:
         out = rrc.MultisetMedian(2).process_batch(np.array([1, 2, 3], dtype=np.int32))
         assert out.dtype == np.float64
 
+# ── C++ engine — SlidingMean ─────────────────────────────────────────────────────
+
+def _mean_ref(x, k):
+    out = np.full(len(x), np.nan)
+    for i in range(len(x)):
+        w = x[max(0, i - k + 1):i + 1]
+        valid = w[~np.isnan(w)]
+        if len(valid) >= 1:
+            out[i] = valid.mean()
+    return out
+
+
+class TestSlidingMean:
+
+    def test_known_values(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        out = rrc.SlidingMean(3).process_batch(x)
+        _nan_allclose(out, [1.0, 1.5, 2.0, 3.0, 4.0])
+
+    def test_window_size_1_identity(self):
+        x = np.array([3.0, 7.0, -1.0])
+        out = rrc.SlidingMean(1).process_batch(x)
+        _nan_allclose(out, x)
+
+    def test_window_larger_than_array(self):
+        out = rrc.SlidingMean(10).process_batch(np.array([2.0, 4.0, 6.0]))
+        _nan_allclose(out, [2.0, 3.0, 4.0])
+
+    def test_constant_sequence(self):
+        out = rrc.SlidingMean(3).process_batch(np.full(6, 5.0))
+        np.testing.assert_allclose(out, 5.0, atol=1e-12)
+
+    @pytest.mark.parametrize("k", [2, 3, 5])
+    def test_against_naive_reference(self, k):
+        x = np.array([-3.0, -1.0, 0.0, 2.0, 10.0, 7.0, 7.0, 8.0])
+        out = rrc.SlidingMean(k).process_batch(x)
+        np.testing.assert_allclose(out, _mean_ref(x, k), rtol=1e-12, atol=1e-12,
+                                   equal_nan=True)
+
+    def test_nan_does_not_contribute(self):
+        x = np.array([1.0, np.nan, 3.0, 4.0, 5.0])
+        out = rrc.SlidingMean(3).process_batch(x)
+        # window [1, nan, 3] → mean of [1, 3] = 2.0
+        assert np.isclose(out[2], 2.0, atol=1e-12)
+
+    def test_nan_advances_window(self):
+        x = np.array([1.0, 2.0, np.nan, 4.0, 5.0])
+        out = rrc.SlidingMean(3).process_batch(x)
+        # window [2, nan, 4] → mean of [2, 4] = 3.0
+        assert np.isclose(out[3], 3.0, atol=1e-12)
+
+    def test_all_nan_returns_nan(self):
+        x = np.array([np.nan, np.nan, np.nan])
+        out = rrc.SlidingMean(2).process_batch(x)
+        assert np.all(np.isnan(out))
+
+    def test_empty_input(self):
+        out = rrc.SlidingMean(3).process_batch(np.array([]))
+        assert len(out) == 0 and out.dtype == np.float64
+
+    def test_rejects_zero_window(self):
+        with pytest.raises(ValueError, match="Window length must be greater than 0"):
+            rrc.SlidingMean(0)
+
+    def test_rejects_2d_input(self):
+        with pytest.raises(RuntimeError, match="Input must be 1D array"):
+            rrc.SlidingMean(2).process_batch(np.ones((2, 3)))
+
+    def test_integer_input_converted_to_float64(self):
+        out = rrc.SlidingMean(2).process_batch(np.array([1, 2, 3, 4], dtype=np.int32))
+        assert out.dtype == np.float64
+
+    def test_min_periods_masks_warmup(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        out = rrc.SlidingMean(3).process_batch(x, min_periods=3)
+        assert np.isnan(out[0]) and np.isnan(out[1])
+        assert np.isclose(out[2], 2.0, atol=1e-12)
+
+    def test_min_periods_with_nan_input(self):
+        x = np.array([1.0, np.nan, 3.0, 4.0, 5.0])
+        out = rrc.SlidingMean(3).process_batch(x, min_periods=2)
+        # pos 1: window [1, nan] → 1 non-NaN < 2 → NaN
+        assert np.isnan(out[1])
+        # pos 2: window [1, nan, 3] → 2 non-NaN >= 2 → 2.0
+        assert np.isclose(out[2], 2.0, atol=1e-12)
+
+
 # ── C++ engine — SlidingMoments ──────────────────────────────────────────────────
 
 class TestSlidingMoments:
@@ -508,6 +595,13 @@ class TestPandasComparison:
         expected = pd.Series(arr).rolling(k, min_periods=_pd_mp(mp, k)).var().to_numpy()
         kw = {} if mp is None else {"min_periods": mp}
         _nan_allclose(rr.rolling_variance(arr, k, **kw), expected)
+
+    @pytest.mark.parametrize("data,k,mp", _CASE_PARAMS, ids=_CASE_IDS)
+    def test_rolling_mean_matches_pandas(self, data, k, mp):
+        arr = np.array(data, dtype=np.float64)
+        expected = pd.Series(arr).rolling(k, min_periods=_pd_mp(mp, k)).mean().to_numpy()
+        kw = {} if mp is None else {"min_periods": mp}
+        _nan_allclose(rr.rolling_mean(arr, k, **kw), expected)
 
 
 # ── High-level API — min_periods edge cases ───────────────────────────────────
@@ -896,3 +990,69 @@ class TestRollingCovCor:
     def test_empty_input(self):
         out = rr.rolling_cov(np.array([]), np.array([]), 3)
         assert len(out) == 0
+
+
+# ── method="fast" (SlidingMomentsPrefix) ─────────────────────────────────────
+
+class TestFastMethod:
+
+    @pytest.mark.parametrize("fn,pd_fn", [
+        (lambda x, k: rr.rolling_variance(x, k, method="fast"),
+         lambda s, k: s.rolling(k).var().to_numpy()),
+        (lambda x, k: rr.rolling_skewness(x, k, method="fast"),
+         lambda s, k: s.rolling(k).skew().to_numpy()),
+        (lambda x, k: rr.rolling_kurtosis(x, k, method="fast"),
+         lambda s, k: s.rolling(k).kurt().to_numpy()),
+    ], ids=["variance", "skewness", "kurtosis"])
+    def test_fast_matches_pandas_no_nan(self, fn, pd_fn):
+        rng = np.random.default_rng(0)
+        x = rng.standard_normal(300)
+        k = 10
+        _nan_allclose(fn(x, k), pd_fn(pd.Series(x), k), rtol=1e-9, atol=1e-9)
+
+    @pytest.mark.parametrize("fn_stable,fn_fast", [
+        (lambda x, k, mp: rr.rolling_variance(x, k, min_periods=mp),
+         lambda x, k, mp: rr.rolling_variance(x, k, min_periods=mp, method="fast")),
+        (lambda x, k, mp: rr.rolling_skewness(x, k, min_periods=mp),
+         lambda x, k, mp: rr.rolling_skewness(x, k, min_periods=mp, method="fast")),
+        (lambda x, k, mp: rr.rolling_kurtosis(x, k, min_periods=mp),
+         lambda x, k, mp: rr.rolling_kurtosis(x, k, min_periods=mp, method="fast")),
+    ], ids=["variance", "skewness", "kurtosis"])
+    def test_fast_agrees_with_stable_with_nan(self, fn_stable, fn_fast):
+        rng = np.random.default_rng(1)
+        x = rng.standard_normal(300)
+        x[rng.random(300) < 0.1] = np.nan
+        k, mp = 10, 5
+        _nan_allclose(fn_fast(x, k, mp), fn_stable(x, k, mp), rtol=1e-9, atol=1e-9)
+
+    def test_fast_variance_warmup_nan(self):
+        x = np.arange(1.0, 11.0)
+        out = rr.rolling_variance(x, 5, method="fast")
+        assert all(np.isnan(out[:4]))
+        assert not np.isnan(out[4])
+
+    def test_fast_skewness_needs_3_obs(self):
+        x = np.arange(1.0, 11.0)
+        out = rr.rolling_skewness(x, 5, method="fast")
+        assert all(np.isnan(out[:4]))
+
+    def test_fast_kurtosis_needs_4_obs(self):
+        x = np.arange(1.0, 11.0)
+        out = rr.rolling_kurtosis(x, 5, method="fast")
+        assert all(np.isnan(out[:4]))
+
+    def test_fast_min_periods(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        out = rr.rolling_variance(x, 3, min_periods=2, method="fast")
+        assert np.isnan(out[0])
+        assert not np.isnan(out[1])
+
+    def test_fast_all_nan_window_returns_nan(self):
+        x = np.array([np.nan, np.nan, np.nan, 1.0, 2.0, 3.0])
+        out = rr.rolling_variance(x, 3, min_periods=1, method="fast")
+        assert np.isnan(out[2])
+        assert not np.isnan(out[5])
+
+    def test_fast_empty_input(self):
+        for fn in [rr.rolling_variance, rr.rolling_skewness, rr.rolling_kurtosis]:
+            assert len(fn(np.array([]), 3, method="fast")) == 0

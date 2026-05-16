@@ -21,7 +21,7 @@ public:
   void skip() { static_cast<Derived *>(this)->skip_impl(); }
 
   void process_batch(const double *input_data, std::size_t length,
-                     double *output_data) {
+                     double *output_data, std::size_t min_periods = 0) {
     for (std::size_t i = 0; i < length; ++i) {
       if (std::isnan(input_data[i])) {
         this->skip();
@@ -30,6 +30,8 @@ public:
         this->update(input_data[i]);
         output_data[i] = this->get_value();
       }
+      if (this->current_size() < min_periods)
+        output_data[i] = std::numeric_limits<double>::quiet_NaN();
     }
   }
 

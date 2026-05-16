@@ -25,6 +25,9 @@ src/MultisetMedian.cpp
 src/SlidingWelford.cpp
 src/SlidingWelfordRing.cpp
 src/SlidingMoments.cpp
+src/SlidingMean.cpp
+src/SlidingCovariance.cpp
+src/SlidingMomentsPrefix.cpp
 
 inst/include/
 

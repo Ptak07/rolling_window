@@ -95,3 +95,40 @@ expect_equal(res_mp0, robustrolling::rolling_variance(x_full, 3L, min_periods = 
 # min_periods validation
 expect_error(robustrolling::rolling_variance(as.double(1:5), 3L, min_periods = -1L))
 expect_error(robustrolling::rolling_variance(as.double(1:5), 3L, min_periods = 4L))
+
+# ---- method = "fast" (SlidingMomentsPrefix) ----------------------------------
+
+x_fast <- as.double(c(1, 3, -1, 5, 2, 8, 0, 4))
+
+# fast matches stable on well-conditioned data
+for (k in c(3L, 4L, 5L)) {
+  expect_equal(
+    robustrolling::rolling_variance(x_fast, k, min_periods = 1L, method = "fast"),
+    robustrolling::rolling_variance(x_fast, k, min_periods = 1L),
+    tolerance = 1e-9
+  )
+}
+
+# warmup NAs — variance needs 2 obs
+x_lin <- as.double(1:8)
+expect_true(is.na(robustrolling::rolling_variance(x_lin, 4L, method = "fast")[1]))
+expect_true(is.na(robustrolling::rolling_variance(x_lin, 4L, method = "fast")[2]))
+expect_true(is.na(robustrolling::rolling_variance(x_lin, 4L, method = "fast")[3]))
+expect_false(is.na(robustrolling::rolling_variance(x_lin, 4L, method = "fast")[4]))
+
+# min_periods respected
+x_mp <- as.double(c(1, 2, 3, 4, 5))
+out_mp <- robustrolling::rolling_variance(x_mp, 4L, min_periods = 2L, method = "fast")
+expect_true(is.na(out_mp[1]))
+expect_false(is.na(out_mp[2]))
+
+# NA in input handled correctly
+x_na2 <- as.double(c(1, 2, NA_real_, 4, 5, 6, 7, 8))
+expect_equal(
+  robustrolling::rolling_variance(x_na2, 4L, min_periods = 1L, method = "fast"),
+  robustrolling::rolling_variance(x_na2, 4L, min_periods = 1L),
+  tolerance = 1e-9
+)
+
+# empty input
+expect_equal(robustrolling::rolling_variance(numeric(0), 3L, method = "fast"), numeric(0))
