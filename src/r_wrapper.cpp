@@ -2,6 +2,7 @@
 #include "MonotonicMin.hpp"
 #include "MultisetMedian.hpp"
 #include "SlidingCovariance.hpp"
+#include "SlidingMean.hpp"
 #include "SlidingMoments.hpp"
 #include "SlidingWelfordRing.hpp"
 
@@ -117,7 +118,8 @@ SEXP rolling_median_c(SEXP r_data, SEXP r_window_size, SEXP r_min_periods) {
   return r_result;
 }
 
-SEXP rolling_mean_c(SEXP r_data, SEXP r_window_size, SEXP r_min_periods) {
+SEXP rolling_mean_c(SEXP r_data, SEXP r_window_size, SEXP r_min_periods,
+                    SEXP r_assume_finite) {
   if (!Rf_isReal(r_data))
     Rf_error("Input data must be a numeric vector.");
 
@@ -125,19 +127,19 @@ SEXP rolling_mean_c(SEXP r_data, SEXP r_window_size, SEXP r_min_periods) {
   R_xlen_t n = XLENGTH(r_data);
   std::size_t k = read_window_size(r_window_size);
   std::size_t mp = read_min_periods(r_min_periods);
+  bool assume_finite = Rf_asLogical(r_assume_finite) == TRUE;
 
-  SlidingMoments sm(k);
+  SlidingMean sm(k);
 
   SEXP r_result;
   PROTECT(r_result = Rf_allocVector(REALSXP, n));
   double *output_ptr = REAL(r_result);
 
-  for (R_xlen_t i = 0; i < n; ++i) {
-    sm.update(input_ptr[i]);
-    output_ptr[i] = sm.current_size() < mp
-                        ? std::numeric_limits<double>::quiet_NaN()
-                        : sm.get_mean();
-  }
+  if (assume_finite)
+    sm.fast_mean_batch_finite(input_ptr, static_cast<std::size_t>(n),
+                              output_ptr, mp);
+  else
+    sm.fast_mean_batch(input_ptr, static_cast<std::size_t>(n), output_ptr, mp);
 
   UNPROTECT(1);
   return r_result;
@@ -258,7 +260,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"rolling_max_c", reinterpret_cast<DL_FUNC>(&rolling_max_c), 3},
     {"rolling_min_c", reinterpret_cast<DL_FUNC>(&rolling_min_c), 3},
     {"rolling_median_c", reinterpret_cast<DL_FUNC>(&rolling_median_c), 3},
-    {"rolling_mean_c", reinterpret_cast<DL_FUNC>(&rolling_mean_c), 3},
+    {"rolling_mean_c", reinterpret_cast<DL_FUNC>(&rolling_mean_c), 4},
     {"rolling_skewness_c", reinterpret_cast<DL_FUNC>(&rolling_skewness_c), 3},
     {"rolling_kurtosis_c", reinterpret_cast<DL_FUNC>(&rolling_kurtosis_c), 3},
     {"rolling_cov_c", reinterpret_cast<DL_FUNC>(&rolling_cov_c), 4},

@@ -128,6 +128,10 @@ rolling_median <- function(x, window_size, min_periods = window_size) {
 #' @param window_size Positive integer window length.
 #' @param min_periods Minimum number of non-\code{NA} observations required in
 #'   a window to return a result. Defaults to \code{window_size}.
+#' @param assume_finite If \code{TRUE}, assumes the input contains no
+#'   \code{NA} values and uses a faster SIMD prefix-sum path. Passing
+#'   \code{TRUE} when \code{NA}s are present produces incorrect results.
+#'   Defaults to \code{FALSE}.
 #'
 #' @return A numeric vector with rolling mean values.
 #'
@@ -136,12 +140,13 @@ rolling_median <- function(x, window_size, min_periods = window_size) {
 #' @examples
 #' x <- as.double(c(1, 2, 3, 4))
 #' rolling_mean(x, 3L)
-rolling_mean <- function(x, window_size, min_periods = window_size) {
+rolling_mean <- function(x, window_size, min_periods = window_size,
+                         assume_finite = FALSE) {
   x <- as.double(x)
   .check_window(window_size)
   mp <- .check_min_periods(min_periods, window_size)
   .Call("rolling_mean_c", x, as.integer(window_size), as.integer(mp),
-        PACKAGE = "robustrolling")
+        as.logical(assume_finite), PACKAGE = "robustrolling")
 }
 
 #' @title Rolling Skewness

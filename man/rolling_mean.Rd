@@ -4,7 +4,7 @@
 \alias{rolling_mean}
 \title{Rolling Mean}
 \usage{
-rolling_mean(x, window_size, min_periods = window_size)
+rolling_mean(x, window_size, min_periods = window_size, assume_finite = FALSE)
 }
 \arguments{
 \item{x}{A numeric vector of type double.}
@@ -13,6 +13,11 @@ rolling_mean(x, window_size, min_periods = window_size)
 
 \item{min_periods}{Minimum number of non-\code{NA} observations required in
 a window to return a result. Defaults to \code{window_size}.}
+
+\item{assume_finite}{If \code{TRUE}, assumes the input contains no
+\code{NA} values and uses a faster SIMD prefix-sum path. Passing
+\code{TRUE} when \code{NA}s are present produces incorrect results.
+Defaults to \code{FALSE}.}
 }
 \value{
 A numeric vector with rolling mean values.
