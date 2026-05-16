@@ -12,6 +12,8 @@ class SlidingMean : public RollingMetric<SlidingMean> {
 public:
   explicit SlidingMean(std::size_t window_size);
   double get_mean() const;
+  void fast_mean_batch(const double *in, std::size_t n, double *out,
+                       std::size_t min_periods) const;
 
 private:
   void update_impl(double value);

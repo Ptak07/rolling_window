@@ -53,78 +53,91 @@ PYBIND11_MODULE(robust_rolling_core, m) {
       .def(py::init<std::size_t>())
       .def("update", &SlidingWelfordRing::update)
       .def("get_variance", &SlidingWelfordRing::get_value)
-      .def("process_batch",
-           [](SlidingWelfordRing &self,
-              py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input,
-              std::size_t min_periods) {
-             return process_batch_generic(
-                 self, input,
-                 [](SlidingWelfordRing &m) { return m.get_variance(); },
-                 min_periods);
-           },
-           py::arg("input"), py::arg("min_periods") = 0);
+      .def(
+          "process_batch",
+          [](SlidingWelfordRing &self,
+             py::array_t<double, py::array::c_style | py::array::forcecast>
+                 input,
+             std::size_t min_periods) {
+            return process_batch_generic(
+                self, input,
+                [](SlidingWelfordRing &m) { return m.get_variance(); },
+                min_periods);
+          },
+          py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<MonotonicMax>(m, "MonotonicMax")
       .def(py::init<std::size_t>())
       .def("update", &MonotonicMax::update)
       .def("get_max", &MonotonicMax::get_max)
-      .def("process_batch",
-           [](MonotonicMax &self,
-              py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input,
-              std::size_t min_periods) {
-             return process_batch_generic(
-                 self, input, [](MonotonicMax &m) { return m.get_max(); },
-                 min_periods);
-           },
-           py::arg("input"), py::arg("min_periods") = 0);
+      .def(
+          "process_batch",
+          [](MonotonicMax &self,
+             py::array_t<double, py::array::c_style | py::array::forcecast>
+                 input,
+             std::size_t min_periods) {
+            return process_batch_generic(
+                self, input, [](MonotonicMax &m) { return m.get_max(); },
+                min_periods);
+          },
+          py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<MonotonicMin>(m, "MonotonicMin")
       .def(py::init<std::size_t>())
       .def("update", &MonotonicMin::update)
       .def("get_min", &MonotonicMin::get_min)
-      .def("process_batch",
-           [](MonotonicMin &self,
-              py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input,
-              std::size_t min_periods) {
-             return process_batch_generic(
-                 self, input, [](MonotonicMin &m) { return m.get_min(); },
-                 min_periods);
-           },
-           py::arg("input"), py::arg("min_periods") = 0);
+      .def(
+          "process_batch",
+          [](MonotonicMin &self,
+             py::array_t<double, py::array::c_style | py::array::forcecast>
+                 input,
+             std::size_t min_periods) {
+            return process_batch_generic(
+                self, input, [](MonotonicMin &m) { return m.get_min(); },
+                min_periods);
+          },
+          py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<MultisetMedian>(m, "MultisetMedian")
       .def(py::init<std::size_t>())
       .def("update", &MultisetMedian::update)
       .def("get_median", &MultisetMedian::get_median)
-      .def("process_batch",
-           [](MultisetMedian &self,
-              py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input,
-              std::size_t min_periods) {
-             return process_batch_generic(
-                 self, input,
-                 [](MultisetMedian &m) { return m.get_median(); },
-                 min_periods);
-           },
-           py::arg("input"), py::arg("min_periods") = 0);
+      .def(
+          "process_batch",
+          [](MultisetMedian &self,
+             py::array_t<double, py::array::c_style | py::array::forcecast>
+                 input,
+             std::size_t min_periods) {
+            return process_batch_generic(
+                self, input, [](MultisetMedian &m) { return m.get_median(); },
+                min_periods);
+          },
+          py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<SlidingMean>(m, "SlidingMean")
       .def(py::init<std::size_t>())
       .def("update", &SlidingMean::update)
       .def("get_mean", &SlidingMean::get_mean)
-      .def("process_batch",
-           [](SlidingMean &self,
-              py::array_t<double, py::array::c_style | py::array::forcecast>
-                  input,
-              std::size_t min_periods) {
-             return process_batch_generic(
-                 self, input, [](SlidingMean &m) { return m.get_mean(); },
-                 min_periods);
-           },
-           py::arg("input"), py::arg("min_periods") = 0);
+      .def(
+          "process_batch",
+          [](SlidingMean &self,
+             py::array_t<double, py::array::c_style | py::array::forcecast>
+                 input,
+             std::size_t min_periods) {
+            py::buffer_info info = input.request();
+            if (info.ndim != 1)
+              throw std::runtime_error("Input must be 1D array");
+            std::size_t n = static_cast<std::size_t>(info.shape[0]);
+            auto result = py::array_t<double>(
+                py::array::ShapeContainer{info.shape[0]},
+                py::array::StridesContainer{
+                    static_cast<py::ssize_t>(sizeof(double))});
+            self.fast_mean_batch(static_cast<const double *>(info.ptr), n,
+                                 static_cast<double *>(result.request().ptr),
+                                 min_periods);
+            return result;
+          },
+          py::arg("input"), py::arg("min_periods") = 0);
 
   py::class_<SlidingMoments>(m, "SlidingMoments")
       .def(py::init<std::size_t>())
