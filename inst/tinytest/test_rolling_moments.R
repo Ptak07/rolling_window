@@ -148,3 +148,49 @@ expect_equal(robustrolling::rolling_kurtosis(numeric(0), 4L), numeric(0))
 # Input validation
 expect_true(is.double(robustrolling::rolling_kurtosis(1:5, 4L)))
 expect_error(robustrolling::rolling_kurtosis(as.double(1:5), 0L))
+
+# ---- method = "fast" (SlidingMomentsPrefix) ----------------------------------
+
+x_fast <- as.double(c(1, 3, -1, 5, 2, 8, 0, 4))
+
+# fast skewness matches stable on well-conditioned data
+for (k in c(4L, 5L, 6L)) {
+  expect_equal(
+    robustrolling::rolling_skewness(x_fast, k, min_periods = 1L, method = "fast"),
+    robustrolling::rolling_skewness(x_fast, k, min_periods = 1L),
+    tolerance = 1e-9
+  )
+}
+
+# fast kurtosis matches stable on well-conditioned data
+for (k in c(4L, 5L, 6L)) {
+  expect_equal(
+    robustrolling::rolling_kurtosis(x_fast, k, min_periods = 1L, method = "fast"),
+    robustrolling::rolling_kurtosis(x_fast, k, min_periods = 1L),
+    tolerance = 1e-9
+  )
+}
+
+# warmup NAs — skewness needs 3 obs, kurtosis needs 4
+x_lin <- as.double(1:10)
+expect_true(all(is.na(robustrolling::rolling_skewness(x_lin, 5L, method = "fast")[1:4])))
+expect_true(all(is.na(robustrolling::rolling_kurtosis(x_lin, 5L, method = "fast")[1:4])))
+
+# min_periods respected
+x_mp <- as.double(c(1, 2, 3, 4, 5))
+out_mp <- robustrolling::rolling_skewness(x_mp, 5L, min_periods = 3L, method = "fast")
+expect_true(is.na(out_mp[1]))
+expect_true(is.na(out_mp[2]))
+expect_false(is.na(out_mp[3]))
+
+# NA in input handled correctly
+x_na2 <- as.double(c(1, 2, NA_real_, 4, 5, 6, 7, 8))
+expect_equal(
+  robustrolling::rolling_skewness(x_na2, 5L, min_periods = 1L, method = "fast"),
+  robustrolling::rolling_skewness(x_na2, 5L, min_periods = 1L),
+  tolerance = 1e-9
+)
+
+# empty input
+expect_equal(robustrolling::rolling_skewness(numeric(0), 3L, method = "fast"), numeric(0))
+expect_equal(robustrolling::rolling_kurtosis(numeric(0), 4L, method = "fast"), numeric(0))

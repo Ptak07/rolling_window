@@ -990,3 +990,69 @@ class TestRollingCovCor:
     def test_empty_input(self):
         out = rr.rolling_cov(np.array([]), np.array([]), 3)
         assert len(out) == 0
+
+
+# ── method="fast" (SlidingMomentsPrefix) ─────────────────────────────────────
+
+class TestFastMethod:
+
+    @pytest.mark.parametrize("fn,pd_fn", [
+        (lambda x, k: rr.rolling_variance(x, k, method="fast"),
+         lambda s, k: s.rolling(k).var().to_numpy()),
+        (lambda x, k: rr.rolling_skewness(x, k, method="fast"),
+         lambda s, k: s.rolling(k).skew().to_numpy()),
+        (lambda x, k: rr.rolling_kurtosis(x, k, method="fast"),
+         lambda s, k: s.rolling(k).kurt().to_numpy()),
+    ], ids=["variance", "skewness", "kurtosis"])
+    def test_fast_matches_pandas_no_nan(self, fn, pd_fn):
+        rng = np.random.default_rng(0)
+        x = rng.standard_normal(300)
+        k = 10
+        _nan_allclose(fn(x, k), pd_fn(pd.Series(x), k), rtol=1e-9, atol=1e-9)
+
+    @pytest.mark.parametrize("fn_stable,fn_fast", [
+        (lambda x, k, mp: rr.rolling_variance(x, k, min_periods=mp),
+         lambda x, k, mp: rr.rolling_variance(x, k, min_periods=mp, method="fast")),
+        (lambda x, k, mp: rr.rolling_skewness(x, k, min_periods=mp),
+         lambda x, k, mp: rr.rolling_skewness(x, k, min_periods=mp, method="fast")),
+        (lambda x, k, mp: rr.rolling_kurtosis(x, k, min_periods=mp),
+         lambda x, k, mp: rr.rolling_kurtosis(x, k, min_periods=mp, method="fast")),
+    ], ids=["variance", "skewness", "kurtosis"])
+    def test_fast_agrees_with_stable_with_nan(self, fn_stable, fn_fast):
+        rng = np.random.default_rng(1)
+        x = rng.standard_normal(300)
+        x[rng.random(300) < 0.1] = np.nan
+        k, mp = 10, 5
+        _nan_allclose(fn_fast(x, k, mp), fn_stable(x, k, mp), rtol=1e-9, atol=1e-9)
+
+    def test_fast_variance_warmup_nan(self):
+        x = np.arange(1.0, 11.0)
+        out = rr.rolling_variance(x, 5, method="fast")
+        assert all(np.isnan(out[:4]))
+        assert not np.isnan(out[4])
+
+    def test_fast_skewness_needs_3_obs(self):
+        x = np.arange(1.0, 11.0)
+        out = rr.rolling_skewness(x, 5, method="fast")
+        assert all(np.isnan(out[:4]))
+
+    def test_fast_kurtosis_needs_4_obs(self):
+        x = np.arange(1.0, 11.0)
+        out = rr.rolling_kurtosis(x, 5, method="fast")
+        assert all(np.isnan(out[:4]))
+
+    def test_fast_min_periods(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        out = rr.rolling_variance(x, 3, min_periods=2, method="fast")
+        assert np.isnan(out[0])
+        assert not np.isnan(out[1])
+
+    def test_fast_all_nan_window_returns_nan(self):
+        x = np.array([np.nan, np.nan, np.nan, 1.0, 2.0, 3.0])
+        out = rr.rolling_variance(x, 3, min_periods=1, method="fast")
+        assert np.isnan(out[2])
+        assert not np.isnan(out[5])
+
+    def test_fast_empty_input(self):
+        for fn in [rr.rolling_variance, rr.rolling_skewness, rr.rolling_kurtosis]:
+            assert len(fn(np.array([]), 3, method="fast")) == 0
